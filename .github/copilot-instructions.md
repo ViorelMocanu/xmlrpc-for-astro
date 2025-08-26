@@ -291,17 +291,17 @@ This is a helper project for the personal site of Viorel Mocanu, an experienced 
 ```typescript
 // ✅ Good: Comprehensive error handling
 try {
-	const result = await fetchData();
-	return { success: true, data: result };
+    const result = await fetchData();
+    return { success: true, data: result };
 } catch (error) {
-	console.error("API call failed:", error);
-	return { success: false, error: error.message };
+    console.error("API call failed:", error);
+    return { success: false, error: error.message };
 }
 
 // ❌ Bad: Swallowing errors
 try {
-	return await fetchData();
+    return await fetchData();
 } catch (e) {
-	console.log(e);
+    console.log(e);
 }
 ```

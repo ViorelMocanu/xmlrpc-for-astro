@@ -17,5 +17,10 @@
 	"tabWidth": 4,
 	"htmlWhitespaceSensitivity": "css",
 
-	"printWidth": 3000
+	"printWidth": 3000,
+
+	"overrides": [
+		{ "files": "*.md", "options": { "useTabs": false, "tabWidth": 4 } },
+		{ "files": "*.mdx", "options": { "useTabs": false, "tabWidth": 4 } }
+	]
 }

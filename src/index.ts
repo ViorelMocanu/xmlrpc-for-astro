@@ -129,7 +129,7 @@ export default {
 			const html = await renderHealthHtml(env, refresh, view);
 			return new Response(html, {
 				status: 200,
-				headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }
+				headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
 			});
 		}
 
@@ -428,14 +428,7 @@ async function latestCloudflareDeploy(env: RuntimeEnv): Promise<{ id: string } |
  * @returns {Promise<HealthData>} The health data
  */
 async function readHealth(env: RuntimeEnv, filterView: "fail" | "all" = "all"): Promise<HealthData> {
-	const [lastPingStr, lastSeen, endpoints, lastResult, lastDry, lastReq] = await Promise.all([
-		env.XMLRPC_PING_KV.get("xmlrpc:last-ping", "text"),
-		env.XMLRPC_PING_KV.get("xmlrpc:last-seen", "text"),
-		env.XMLRPC_PING_KV.get("xmlrpc:endpoints", "json") as Promise<string[] | null>,
-		env.XMLRPC_PING_KV.get("xmlrpc:last-result", "json") as Promise<LastResultKV | null>,
-		env.XMLRPC_PING_KV.get("xmlrpc:last-dry", "json")    as Promise<LastResultKV | null>,
-		env.XMLRPC_PING_KV.get("xmlrpc:last-request", "json") as Promise<{ time: number; body: unknown } | null>,
-	]);
+	const [lastPingStr, lastSeen, endpoints, lastResult, lastDry, lastReq] = await Promise.all([env.XMLRPC_PING_KV.get("xmlrpc:last-ping", "text"), env.XMLRPC_PING_KV.get("xmlrpc:last-seen", "text"), env.XMLRPC_PING_KV.get("xmlrpc:endpoints", "json") as Promise<string[] | null>, env.XMLRPC_PING_KV.get("xmlrpc:last-result", "json") as Promise<LastResultKV | null>, env.XMLRPC_PING_KV.get("xmlrpc:last-dry", "json") as Promise<LastResultKV | null>, env.XMLRPC_PING_KV.get("xmlrpc:last-request", "json") as Promise<{ time: number; body: unknown } | null>]);
 	const sampleSource = lastResult ?? lastDry ?? null;
 	const sampleRes = sampleSource?.result as DoPingResult | undefined;
 
@@ -451,9 +444,9 @@ async function readHealth(env: RuntimeEnv, filterView: "fail" | "all" = "all"): 
 
 	return {
 		site: {
-		name: sampleRes?.siteName ?? null,
-		url:  sampleRes?.siteUrl  ?? null,
-		feed: sampleRes?.feedUrl  ?? null,
+			name: sampleRes?.siteName ?? null,
+			url: sampleRes?.siteUrl ?? null,
+			feed: sampleRes?.feedUrl ?? null,
 		},
 		latestId: lastResult?.latest?.id ?? lastSeen ?? null,
 		endpointsCount: Array.isArray(endpoints) ? endpoints.length : 0,
@@ -468,7 +461,6 @@ async function readHealth(env: RuntimeEnv, filterView: "fail" | "all" = "all"): 
 		sampleSource: sampleSource ? { time: sampleSource.time, result: sampleSource.result } : undefined,
 	};
 }
-
 
 /**
  * Format a time value

@@ -1,0 +1,35 @@
+{
+	"search.exclude": {
+		"**/node_modules": true
+	},
+	"files.watcherExclude": {
+		"**/.git/objects/**": true,
+		"**/.git/subtree-cache/**": true,
+		"**/node_modules/**": true,
+		"env-*": true
+	},
+	"files.exclude": {
+		"**/.git": true,
+		"**/.DS_Store": true,
+		"**/node_modules": true,
+		"env*": true
+	},
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	"editor.formatOnType": true,
+	"editor.formatOnPaste": true,
+	"editor.formatOnSave": true,
+	/*
+	"editor.codeActionsOnSave": {
+		"source.fixAll.markdownlint": "explicit",
+		"source.fixAll.eslint": "explicit"
+	},
+	*/
+	"files.eol": "\n",
+	"files.encoding": "utf8",
+	"files.autoGuessEncoding": true,
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"git.inputValidationLength": 100,
+	"git.inputValidationSubjectLength": 72,
+	"eslint.format.enable": false,
+	"eslint.validate": ["javascript", "typescript"]
+}

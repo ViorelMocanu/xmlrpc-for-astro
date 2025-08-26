@@ -20,51 +20,51 @@
 ## Table of contents
 
 - [XML-RPC Pinger for Astro (Cloudflare Worker)](#xml-rpc-pinger-for-astro-cloudflare-worker)
-  - [Features](#features)
-  - [Table of contents](#table-of-contents)
-  - [How it works](#how-it-works)
-  - [Prerequisites](#prerequisites)
-  - [Install \& setup](#install--setup)
-    - [1) **Create a KV namespace** (once):](#1-create-a-kv-namespace-once)
-    - [2) **Set secrets** (never commit these):](#2-set-secrets-never-commit-these)
-    - [3) **Generate types** (binding types go into `worker-configuration.d.ts`):](#3-generate-types-binding-types-go-into-worker-configurationdts)
-    - [4) **Seed endpoints (optional now, can do later)**](#4-seed-endpoints-optional-now-can-do-later)
-  - [Configuration](#configuration)
-    - [Bindings \& secrets used by the Worker](#bindings--secrets-used-by-the-worker)
-  - [Local development](#local-development)
-  - [Manual trigger (curl / PowerShell)](#manual-trigger-curl--powershell)
-    - [curl](#curl)
-    - [PowerShell](#powershell)
-  - [Dry-run, verbose, CSV \& NDJSON](#dry-run-verbose-csv--ndjson)
-    - [Examples](#examples)
-      - [Failures → CSV (great for pruning)](#failures--csv-great-for-pruning)
-      - [Failures → NDJSON](#failures--ndjson)
-  - [/health dashboard](#health-dashboard)
-  - [Seeding/Editing the endpoints list](#seedingediting-the-endpoints-list)
-  - [CI deploy (GitHub Actions)](#ci-deploy-github-actions)
-    - [Notifying from your Astro site](#notifying-from-your-astro-site)
-  - [Scripts (package.json)](#scripts-packagejson)
-  - [FAQ / Tips](#faq--tips)
-    - [“/health shows nothing!”](#health-shows-nothing)
-    - [“Why am I rate-limited?”](#why-am-i-rate-limited)
-    - [“Some endpoints return 301/302/530/timeout.”](#some-endpoints-return-301302530timeout)
-    - [Security](#security)
-  - [License](#license)
-    - [Bonus: Minimal endpoint fallback](#bonus-minimal-endpoint-fallback)
+    - [Features](#features)
+    - [Table of contents](#table-of-contents)
+    - [How it works](#how-it-works)
+    - [Prerequisites](#prerequisites)
+    - [Install \& setup](#install--setup)
+        - [1) **Create a KV namespace** (once)](#1-create-a-kv-namespace-once)
+        - [2) **Set secrets** (never commit these)](#2-set-secrets-never-commit-these)
+        - [3) **Generate types** (binding types go into `worker-configuration.d.ts`)](#3-generate-types-binding-types-go-into-worker-configurationdts)
+        - [4) **Seed endpoints (optional now, can do later)**](#4-seed-endpoints-optional-now-can-do-later)
+    - [Configuration](#configuration)
+        - [Bindings \& secrets used by the Worker](#bindings--secrets-used-by-the-worker)
+    - [Local development](#local-development)
+    - [Manual trigger (curl / PowerShell)](#manual-trigger-curl--powershell)
+        - [curl](#curl)
+        - [PowerShell](#powershell)
+    - [Dry-run, verbose, CSV \& NDJSON](#dry-run-verbose-csv--ndjson)
+        - [Examples](#examples)
+            - [Failures → CSV (great for pruning)](#failures--csv-great-for-pruning)
+            - [Failures → NDJSON](#failures--ndjson)
+    - [/health dashboard](#health-dashboard)
+    - [Seeding/Editing the endpoints list](#seedingediting-the-endpoints-list)
+    - [CI deploy (GitHub Actions)](#ci-deploy-github-actions)
+        - [Notifying from your Astro site](#notifying-from-your-astro-site)
+    - [Scripts (package.json)](#scripts-packagejson)
+    - [FAQ / Tips](#faq--tips)
+        - [“/health shows nothing!”](#health-shows-nothing)
+        - [“Why am I rate-limited?”](#why-am-i-rate-limited)
+        - [“Some endpoints return 301/302/530/timeout.”](#some-endpoints-return-301302530timeout)
+        - [Security](#security)
+    - [License](#license)
+        - [Bonus: Minimal endpoint fallback](#bonus-minimal-endpoint-fallback)
 
 ---
 
 ## How it works
 
 - The Worker keeps two KV keys:
-  - `xmlrpc:last-ping` — enforces ≤ 1 ping/hour
-  - `xmlrpc:last-seen` — last deploy/commit ID we already processed
+    - `xmlrpc:last-ping` — enforces ≤ 1 ping/hour
+    - `xmlrpc:last-seen` — last deploy/commit ID we already processed
 - On a schedule (default: every 15 minutes) it asks either:
-  - **GitHub**: latest commit on a branch, or
-  - **Cloudflare Pages**: latest successful deployment
+    - **GitHub**: latest commit on a branch, or
+    - **Cloudflare Pages**: latest successful deployment
 - If something **new** is found _and_ we’re outside the rate-limit window, we POST the correct XML-RPC call to every endpoint in your list:
-  - `weblogUpdates.ping(siteName, siteUrl)` **or**
-  - `weblogUpdates.extendedPing(siteName, siteUrl, feedUrl)`
+    - `weblogUpdates.ping(siteName, siteUrl)` **or**
+    - `weblogUpdates.extendedPing(siteName, siteUrl, feedUrl)`
 - Results are summarized and shown on `/health`.  
   Dry-runs are also visible (labeled) so you can test safely.
 
@@ -72,15 +72,15 @@
 
 ## Prerequisites
 
-- **Node 20+** (LTS) and **pnpm 9+**  
+- **Node 20+** (LTS) and **pnpm 9+**
 - A **Cloudflare account** with:
-  - A **Workers KV namespace** (we’ll create one)
-  - An **API Token** (store it in your CI as `CLOUDFLARE_API_TOKEN`) with scopes:
-    - _Workers Scripts: Edit_
-    - _Workers KV Storage: Edit_
-    - _Workers Tail: Read_
-    - _User Details: Read_  ← this avoids “/memberships” auth errors
-    - _Cloudflare Pages: Edit_ (only if you use the “cloudflare” detector)
+    - A **Workers KV namespace** (we’ll create one)
+    - An **API Token** (store it in your CI as `CLOUDFLARE_API_TOKEN`) with scopes:
+        - _Workers Scripts: Edit_
+        - _Workers KV Storage: Edit_
+        - _Workers Tail: Read_
+        - _User Details: Read_ ← this avoids “/memberships” auth errors
+        - _Cloudflare Pages: Edit_ (only if you use the “cloudflare” detector)
 - (Optional) A **GitHub token** with repo read access if your branch is private
 
 ---
@@ -92,7 +92,7 @@ pnpm install
 wrangler login
 ```
 
-### 1) **Create a KV namespace** (once):
+### 1) **Create a KV namespace** (once)
 
 ```bash
 # create
@@ -101,7 +101,7 @@ npx wrangler kv namespace create XMLRPC_PING_KV
 # note the "id" returned, then paste it into wrangler.toml under [[kv_namespaces]]
 ```
 
-### 2) **Set secrets** (never commit these):
+### 2) **Set secrets** (never commit these)
 
 ```bash
 # required: secret used for manual POST trigger
@@ -116,7 +116,7 @@ npx wrangler secret put GITHUB_TOKEN
 npx wrangler secret put CLOUDFLARE_API_TOKEN
 ```
 
-### 3) **Generate types** (binding types go into `worker-configuration.d.ts`):
+### 3) **Generate types** (binding types go into `worker-configuration.d.ts`)
 
 ```bash
 npx wrangler types
@@ -163,17 +163,17 @@ CLOUDFLARE_ACCOUNT_ID    = "<your account id>"
 
 ### Bindings & secrets used by the Worker
 
-| Name                      | Where       | Required | Notes |
-|---------------------------|-------------|---------:|-------|
-| `XMLRPC_PING_KV`          | KV binding  | ✅ | Stores rate-limit, last seen, endpoint list, last results |
-| `XMLRPC_PING_SECRET`      | secret      | ✅ | Bearer token for manual POST trigger |
-| `DETECTOR`                | var         | ✅ | `"github"` (default) or `"cloudflare"` |
-| `SITE_NAME/SITE_URL`      | vars        | ✅ | Defaults for XML-RPC ping |
-| `FEED_URL`                | var         | ➖ | If set → uses `extendedPing` |
-| `PING_ENDPOINTS`          | var         | ➖ | JSON array string as fallback when KV not seeded |
-| `GITHUB_REPO/BRANCH`      | vars        | ➖ | e.g. `owner/repo` and `main` |
-| `GITHUB_TOKEN`            | secret      | ➖ | Needed for private repos |
-| `CLOUDFLARE_*`            | vars/secrets| ➖ | If using the Cloudflare detector |
+| Name                 | Where        | Required | Notes                                                     |
+| -------------------- | ------------ | -------: | --------------------------------------------------------- |
+| `XMLRPC_PING_KV`     | KV binding   |       ✅ | Stores rate-limit, last seen, endpoint list, last results |
+| `XMLRPC_PING_SECRET` | secret       |       ✅ | Bearer token for manual POST trigger                      |
+| `DETECTOR`           | var          |       ✅ | `"github"` (default) or `"cloudflare"`                    |
+| `SITE_NAME/SITE_URL` | vars         |       ✅ | Defaults for XML-RPC ping                                 |
+| `FEED_URL`           | var          |       ➖ | If set → uses `extendedPing`                              |
+| `PING_ENDPOINTS`     | var          |       ➖ | JSON array string as fallback when KV not seeded          |
+| `GITHUB_REPO/BRANCH` | vars         |       ➖ | e.g. `owner/repo` and `main`                              |
+| `GITHUB_TOKEN`       | secret       |       ➖ | Needed for private repos                                  |
+| `CLOUDFLARE_*`       | vars/secrets |       ➖ | If using the Cloudflare detector                          |
 
 ---
 
@@ -227,13 +227,13 @@ Invoke-RestMethod -Method POST -Uri $URL `
 
 **Query params** you can append to the POST URL:
 
-| Param        | Values             | Purpose |
-|--------------|--------------------|---------|
-| `dry`        | `1` or `0`         | Skip 1-hour lock and **don’t** persist “last-result” (safe testing) |
-| `verbose`    | `1`                | Include `ms` (latency) and a small `bodySnippet` for failures |
-| `only`       | `fail` \| `all`    | Filter the response to failures or show everything |
-| `limit`      | integer            | Only ping the first N endpoints (quick sampling) |
-| `format`     | `csv` \| `ndjson`  | Export results for spreadsheets/CLI tools |
+| Param     | Values            | Purpose                                                             |
+| --------- | ----------------- | ------------------------------------------------------------------- |
+| `dry`     | `1` or `0`        | Skip 1-hour lock and **don’t** persist “last-result” (safe testing) |
+| `verbose` | `1`               | Include `ms` (latency) and a small `bodySnippet` for failures       |
+| `only`    | `fail` \| `all`   | Filter the response to failures or show everything                  |
+| `limit`   | integer           | Only ping the first N endpoints (quick sampling)                    |
+| `format`  | `csv` \| `ndjson` | Export results for spreadsheets/CLI tools                           |
 
 ### Examples
 
@@ -269,8 +269,8 @@ Open:
 /health?refresh=60&view=fail
 ```
 
-- `refresh` — auto-refresh every N seconds  
-- `view` — `all` or `fail` (the table is filtered; the badges show totals)  
+- `refresh` — auto-refresh every N seconds
+- `view` — `all` or `fail` (the table is filtered; the badges show totals)
 - `format=json` — JSON version of the same data
 
 The page shows:
@@ -303,8 +303,8 @@ npx wrangler kv key delete xmlrpc:endpoints --binding=XMLRPC_PING_KV
 A **good workflow** is:
 
 1. Seed with a big list.
-2. Run a **dry** verbose POST with `only=fail&format=csv`.  
-3. Remove the failing URLs from your JSON.  
+2. Run a **dry** verbose POST with `only=fail&format=csv`.
+3. Remove the failing URLs from your JSON.
 4. Re-seed KV with the cleaned list.
 
 ---
@@ -316,31 +316,31 @@ A **good workflow** is:
 ```yaml
 name: Deploy Worker
 on:
-  push: { branches: [ main ] }
+    push: { branches: [main] }
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v3
-        with: { version: 9 }
-      - uses: actions/setup-node@v4
-        with: { node-version: 20 }
-      - run: pnpm install --frozen-lockfile
-      - name: Generate Types
-        run: npx wrangler types
-      - name: Deploy
-        run: npx wrangler deploy
+    deploy:
+        runs-on: ubuntu-latest
+        env:
+            CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v3
+              with: { version: 9 }
+            - uses: actions/setup-node@v4
+              with: { node-version: 20 }
+            - run: pnpm install --frozen-lockfile
+            - name: Generate Types
+              run: npx wrangler types
+            - name: Deploy
+              run: npx wrangler deploy
 ```
 
 **Secrets to add in the repo:**
 
-- `CLOUDFLARE_API_TOKEN` — with the scopes listed in **Prerequisites**  
-- `PING_ENDPOINT` — Worker URL (e.g. `https://<zone>.<name>.workers.dev/`)  
-- `PING_SECRET` — same value used when you ran `wrangler secret put XMLRPC_PING_SECRET`  
+- `CLOUDFLARE_API_TOKEN` — with the scopes listed in **Prerequisites**
+- `PING_ENDPOINT` — Worker URL (e.g. `https://<zone>.<name>.workers.dev/`)
+- `PING_SECRET` — same value used when you ran `wrangler secret put XMLRPC_PING_SECRET`
 - `PING_SITE_NAME`, `PING_SITE_URL`, `PING_FEED_URL` — (optional) site info defaults
 
 ### Notifying from your Astro site
@@ -351,18 +351,18 @@ In the **Astro** repo, add a final step after the site deploy:
 - name: Notify XML-RPC pinger
   if: ${{ success() }}
   env:
-    PING_ENDPOINT: ${{ secrets.PING_ENDPOINT }}
-    PING_SECRET:   ${{ secrets.PING_SECRET }}
-    PING_SITE_NAME: ${{ secrets.PING_SITE_NAME || 'Your Name' }}
-    PING_SITE_URL:  ${{ secrets.PING_SITE_URL  || 'https://example.com' }}
-    PING_FEED_URL:  ${{ secrets.PING_FEED_URL  || 'https://example.com/feed.xml' }}
+      PING_ENDPOINT: ${{ secrets.PING_ENDPOINT }}
+      PING_SECRET: ${{ secrets.PING_SECRET }}
+      PING_SITE_NAME: ${{ secrets.PING_SITE_NAME || 'Your Name' }}
+      PING_SITE_URL: ${{ secrets.PING_SITE_URL  || 'https://example.com' }}
+      PING_FEED_URL: ${{ secrets.PING_FEED_URL  || 'https://example.com/feed.xml' }}
   run: |
-    curl -sS -X POST "$PING_ENDPOINT" \
-      -H "Authorization: Bearer $PING_SECRET" \
-      -H "Content-Type: application/json" \
-      -d @- <<JSON
-    { "siteName":"${PING_SITE_NAME}", "siteUrl":"${PING_SITE_URL}", "feedUrl":"${PING_FEED_URL}" }
-    JSON
+      curl -sS -X POST "$PING_ENDPOINT" \
+        -H "Authorization: Bearer $PING_SECRET" \
+        -H "Content-Type: application/json" \
+        -d @- <<JSON
+      { "siteName":"${PING_SITE_NAME}", "siteUrl":"${PING_SITE_URL}", "feedUrl":"${PING_FEED_URL}" }
+      JSON
 ```
 
 The Worker will still enforce the ≤1/hour lock, so multiple deploys won’t spam the endpoints.
@@ -375,17 +375,17 @@ If you’re using **pnpm**, these are handy aliases (adjust to your taste):
 
 ```jsonc
 {
-  "scripts": {
-    "dev": "wrangler dev",
-    "dev:remote": "wrangler dev --remote",
-    "deploy": "wrangler deploy",
-    "tail": "wrangler tail xmlrpc-for-astro",
-    "types": "wrangler types",
-    "kv:put:endpoints": "wrangler kv key put xmlrpc:endpoints --binding=XMLRPC_PING_KV --path ./endpoints.json",
-    "kv:get:endpoints": "wrangler kv key get xmlrpc:endpoints --binding=XMLRPC_PING_KV",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
-  }
+    "scripts": {
+        "dev": "wrangler dev",
+        "dev:remote": "wrangler dev --remote",
+        "deploy": "wrangler deploy",
+        "tail": "wrangler tail xmlrpc-for-astro",
+        "types": "wrangler types",
+        "kv:put:endpoints": "wrangler kv key put xmlrpc:endpoints --binding=XMLRPC_PING_KV --path ./endpoints.json",
+        "kv:get:endpoints": "wrangler kv key get xmlrpc:endpoints --binding=XMLRPC_PING_KV",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+    },
 }
 ```
 
