@@ -68,7 +68,8 @@
 		"prepare": "husky",
 		"upd": "pnpm self-update && pnpm update --latest --recursive --interactive --verbose --ignore-scripts=false --include=optional && pnpm up && pnpm i",
 		"dev": "pnpm verify:fix && wrangler dev",
-		"deploy": "pnpm verify:fix && wrangler deploy"
+		"deploy": "pnpm verify:fix && wrangler deploy",
+		"postinstall": "wrangler types"
 	},
 	"devDependencies": {
 		"@commitlint/cli": "^19.8.1",
