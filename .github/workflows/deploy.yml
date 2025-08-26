@@ -29,7 +29,6 @@ jobs:
 
       - name: Debug
         run: ls -la && cat wrangler.toml
-      - run: npx wrangler whoami
 
       - name: Deploy
-        run: npx wrangler deploy --account-id ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
