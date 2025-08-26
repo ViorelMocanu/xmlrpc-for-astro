@@ -8,14 +8,24 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CF_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: pnpm/action-setup@v3
-        with: { version: 9 }
+        with:
+          version: 9
+
       - uses: actions/setup-node@v4
-        with: { node-version: "20", cache: "pnpm" }
+        with:
+          node-version: 20
+          cache: pnpm
+
       - run: pnpm install --frozen-lockfile
+
+      # (optional) generate updated binding types if wrangler.toml changed
+      - run: npx wrangler types
+
       - name: Deploy
         run: npx wrangler deploy
