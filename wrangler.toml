@@ -1,6 +1,7 @@
 name = "xmlrpc-for-astro"
 main = "src/index.ts"
 compatibility_date = "2025-08-26"
+account_id = "aebd6727945799943cfc166658576676"
 
 # KV for rate limit + last seen deploy/commit
 [[kv_namespaces]]
