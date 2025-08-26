@@ -36,7 +36,7 @@
 		},
 		"isolatedModules": true,
 		"declaration": true,
-		"types": ["./worker-configuration.d.ts", "node"],
+		"types": ["./worker-configuration.d.ts"],
 		"verbatimModuleSyntax": true,
 		"sourceMap": true,
 		"strict": true,

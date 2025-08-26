@@ -7,10 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      '@types/node':
-        specifier: ^24.3.0
-        version: 24.3.0
     devDependencies:
       '@commitlint/cli':
         specifier: ^19.8.1
