@@ -36,6 +36,18 @@ type PingPayload = {
 
 type PingResult = { url: string; ok: boolean; status: number; error?: string };
 
+interface DoPingResult {
+	status: "done" | "skipped";
+	reason?: string;
+	dryRun?: boolean;
+	method?: string;
+	siteName?: string;
+	siteUrl?: string;
+	feedUrl?: string | null;
+	totals?: { total: number; ok: number; fail: number };
+	summary?: Array<PingResult & VerboseFields>;
+}
+
 interface GitHubBranchInfo {
 	commit?: { sha?: string };
 }
@@ -48,6 +60,45 @@ interface CfDeployments {
 	result?: { deployments?: CfDeploy[] } | CfDeploy[];
 }
 
+type PingOpts = {
+	dryRun?: boolean; // skip 1h lock + (optionally) KV writes
+	concurrency?: number; // default 6
+	timeoutMs?: number; // default 10000
+	limit?: number; // test first N endpoints
+	verbose?: boolean; // add latency & body snippet
+	only?: "all" | "fail"; // filter output
+};
+
+type VerboseFields = { ms?: number; bodySnippet?: string };
+
+interface HealthData {
+	site: { name: string | null; url: string | null; feed: string | null };
+	latestId: string | null;
+	endpointsCount: number;
+	lastPingAt: number | null;
+	nextAllowedInMs: number;
+	lastResultAt: number | null;
+	successes: number;
+	failures: number;
+	lastRequestAt: number | null;
+	lastRequestBody: unknown;
+	recentSample: PingResult[];
+	sampleSource?: { time: number; result: unknown } | undefined;
+}
+
+type LastResultKV = {
+	time: number;
+	latest?: { id?: string }; // from scheduled()
+	result?: {
+		status: string;
+		method: string;
+		siteName: string;
+		siteUrl: string;
+		feedUrl: string | null;
+		summary?: Array<{ url: string; ok: boolean; status: number; error?: string }>;
+	};
+};
+
 const HOUR = 60 * 60;
 const RL_KEY = "xmlrpc:last-ping";
 const LAST_KEY = "xmlrpc:last-seen"; // commit sha or deploy id
@@ -57,18 +108,77 @@ const minimal_endpoints = ["https://rpc.pingomatic.com/", "https://blogsearch.go
 export default {
 	// Manual trigger (optional) — e.g., from CI
 	async fetch(request: Request, env: RuntimeEnv): Promise<Response> {
+		// Health page (human-friendly)
+		// GET /health?refresh=60&view=fail|all&format=json|csv|ndjson
+		const url = new URL(request.url);
+		const dryRun = url.searchParams.get("dry") === "1";
+		const verbose = url.searchParams.get("verbose") === "1";
+		const only = (url.searchParams.get("only") as "all" | "fail") || "all";
+		const limit = Number(url.searchParams.get("limit") || "0");
+		const format = url.searchParams.get("format"); // json (default), csv, ndjson
+
+		if (request.method === "GET" && url.pathname === "/health") {
+			const refresh = Number(url.searchParams.get("refresh") || "0"); // seconds
+			const view = (url.searchParams.get("view") as "fail" | "all") || "all";
+
+			if (format === "json") {
+				const data = await readHealth(env, view);
+				return Response.json(data, { headers: { "Cache-Control": "no-store" } });
+			}
+
+			const html = await renderHealthHtml(env, refresh, view);
+			return new Response(html, {
+				status: 200,
+				headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }
+			});
+		}
+
+		// Regular HTTP POST trigger for direct triggering via CURL / PowerShell Invoke-RestMethod
 		if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405, headers: { Allow: "POST" } });
 		const auth = request.headers.get("authorization");
 		if (!auth || auth !== `Bearer ${env.XMLRPC_PING_SECRET}`) return new Response("Unauthorized", { status: 401 });
 
 		const body = (await safeJson(request)) as Partial<PingPayload>;
-		const res = await doPing(env, body);
-		await env.XMLRPC_PING_KV.put("xmlrpc:last-request", JSON.stringify({ time: Date.now(), body }), { expirationTtl: 7 * 24 * 3600 });
-		return Response.json(res);
+		const res = await doPing(env, body, { dryRun, verbose, only, limit });
+
+		// Persist only non-dry runs to "last-result"
+		if (!dryRun) {
+			await env.XMLRPC_PING_KV.put("xmlrpc:last-result", JSON.stringify({ time: Date.now(), result: res }), { expirationTtl: 7 * 24 * 3600 });
+		} else {
+			// OPTIONAL: also snapshot last dry run so /health has something to show
+			await env.XMLRPC_PING_KV.put("xmlrpc:last-dry", JSON.stringify({ time: Date.now(), result: res }), { expirationTtl: 24 * 3600 });
+		}
+
+		// CSV / NDJSON exporters for easy local analysis
+		if (format === "csv") {
+			const csv = toCsv(res.summary ?? []);
+			return new Response(csv, {
+				headers: {
+					"Content-Type": "text/csv; charset=utf-8",
+					"Content-Disposition": `attachment; filename="xmlrpc-dryrun-${only}.csv"`,
+					"Cache-Control": "no-store",
+				},
+			});
+		}
+		if (format === "ndjson") {
+			const nd = toNdjson(res.summary ?? []);
+			return new Response(nd, {
+				headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-store" },
+			});
+		}
+
+		return Response.json(res, { headers: { "Cache-Control": "no-store" } });
 	},
 
 	// Cron trigger — zero coupling with your site repo
 
+	/**
+	 * Cron trigger — zero coupling with your site repo
+	 * @param {ScheduledController} _event The scheduled event controller
+	 * @param {RuntimeEnv} env The runtime environment
+	 * @param {ExecutionContext} _ctx The execution context
+	 * @returns {Promise<void>} The scheduled event handler
+	 */
 	async scheduled(_event: ScheduledController, env: RuntimeEnv, _ctx: ExecutionContext): Promise<void> {
 		try {
 			const detector = (env.DETECTOR || "github") as "github" | "cloudflare";
@@ -91,7 +201,8 @@ export default {
 			await env.XMLRPC_PING_KV.put("xmlrpc:last-result", JSON.stringify({ time: Date.now(), latest, result }), { expirationTtl: 7 * 24 * 3600 });
 		} catch (e) {
 			// swallow to avoid cron alarms; consider sending to Sentry/Logtail
-			console.log("scheduled error", String(e)); // tiny breadcrumb
+			// eslint-disable-next-line no-console
+			console.error("scheduled error", e instanceof Error ? e.message : String(e)); // tiny breadcrumb
 			await noop();
 		}
 	},
@@ -101,69 +212,73 @@ export default {
  * Perform the ping operation
  * @param {RuntimeEnv} env The environment variables
  * @param {Partial<PingPayload>} payload The ping payload
+ * @param opts
  * @returns {Promise<object>} The ping result
  */
-async function doPing(env: RuntimeEnv, payload: Partial<PingPayload>): Promise<object> {
-	const rl = await env.XMLRPC_PING_KV.get(RL_KEY);
-	if (rl) return { status: "skipped", reason: "rate-limited (<=1/hour)" };
+async function doPing(env: RuntimeEnv, payload: Partial<PingPayload>, opts: PingOpts = {}): Promise<DoPingResult> {
+	const { dryRun = false, concurrency = 6, timeoutMs = 10_000, limit = 0, verbose = false, only = "all" } = opts;
+
+	if (!dryRun) {
+		const rl = await env.XMLRPC_PING_KV.get(RL_KEY);
+		if (rl) return { status: "skipped", reason: "rate-limited (<=1/hour)" };
+	}
 
 	const siteName = payload.siteName ?? env.SITE_NAME ?? "Viorel Mocanu";
 	const siteUrl = payload.siteUrl ?? env.SITE_URL ?? "https://www.viorelmocanu.ro";
 	const feedUrl = payload.feedUrl ?? env.FEED_URL ?? null;
 
-	// Prefer KV list if present: xmlrpc:endpoints
 	let endpoints: string[] = [];
 	const kvList = (await env.XMLRPC_PING_KV.get("xmlrpc:endpoints", "json")) as string[] | null;
 	if (Array.isArray(kvList)) endpoints = kvList;
 	if (!endpoints.length) {
 		endpoints = Array.isArray(payload.endpoints) ? payload.endpoints : env.PING_ENDPOINTS ? JSON.parse(env.PING_ENDPOINTS) : minimal_endpoints;
 	}
+	if (limit > 0) endpoints = endpoints.slice(0, limit);
 
 	const method = feedUrl ? "weblogUpdates.extendedPing" : "weblogUpdates.ping";
 	const params = feedUrl ? [siteName, siteUrl, feedUrl] : [siteName, siteUrl];
 	const bodyXml = xmlRpc(method, params);
 
-	// set RL immediately to gate concurrent calls
-	await env.XMLRPC_PING_KV.put(RL_KEY, String(Date.now()), { expirationTtl: HOUR });
+	if (!dryRun) {
+		await env.XMLRPC_PING_KV.put(RL_KEY, String(Date.now()), { expirationTtl: HOUR });
+	}
 
-	// const results = await Promise.allSettled(endpoints.map((u) => pingOne(u, bodyXml)));
-	// Add rate limiting:
 	/**
 	 * Ping a URL with a timeout
 	 * @param {string} url The URL to ping
 	 * @param {string} body The request body
 	 * @param {number} ms The timeout in milliseconds
-	 * @returns {Promise<PingResult>} The ping result
+	 * @returns {Promise<PingResult & VerboseFields>} The ping result
 	 */
-	async function pingWithTimeout(url: string, body: string, ms = 10_000): Promise<PingResult> {
+	async function pingWithTimeout(url: string, body: string, ms = timeoutMs): Promise<PingResult & VerboseFields> {
+		const started = Date.now();
 		const ctrl = new AbortController();
 		const t = setTimeout(() => ctrl.abort("timeout"), ms);
 		try {
-			const res = await fetch(url, {
-				method: "POST",
-				headers: { "Content-Type": "text/xml" },
-				body,
-				redirect: "manual",
-				signal: ctrl.signal,
-			});
-			return { url, ok: res.ok, status: res.status };
+			const res = await fetch(url, { method: "POST", headers: { "Content-Type": "text/xml" }, body, redirect: "manual", signal: ctrl.signal });
+			const record: PingResult & VerboseFields = { url, ok: res.ok, status: res.status, ms: Date.now() - started };
+			if (verbose && !res.ok) {
+				try {
+					record.bodySnippet = (await res.text()).slice(0, 200);
+				} catch {}
+			}
+			return record;
 		} catch (e) {
-			return { url, ok: false, status: 0, error: String(e) };
+			return { url, ok: false, status: 0, error: String(e), ms: Date.now() - started };
 		} finally {
 			clearTimeout(t);
 		}
 	}
 
-	// Run with a small concurrency (≈6)
 	/**
 	 * Run a pool of promises with a limited concurrency
 	 * @param {T[]} items The items to process
 	 * @param {number} size The maximum number of concurrent promises
-	 * @param {(i: T) => Promise<PingResult>} fn The function to call for each item
-	 * @returns {Promise<PingResult[]>} The results of the promises
+	 * @param {(i: T) => Promise<any>} fn The function to call for each item
+	 * @returns {Promise<any[]>} The results of the promises
 	 */
-	async function runPool<T>(items: T[], size: number, fn: (i: T) => Promise<PingResult>): Promise<PingResult[]> {
-		const results: PingResult[] = [];
+	async function runPool<T, R>(items: T[], size: number, fn: (i: T) => Promise<R>): Promise<R[]> {
+		const results: R[] = [];
 		let i = 0;
 		const workers = Array.from({ length: Math.min(size, items.length) }, async () => {
 			while (true) {
@@ -176,23 +291,45 @@ async function doPing(env: RuntimeEnv, payload: Partial<PingPayload>): Promise<o
 		return results;
 	}
 
-	const summary = await runPool(endpoints, 6, (u) => pingWithTimeout(u, bodyXml, 10_000));
+	let summary = await runPool<string, PingResult & VerboseFields>(endpoints, concurrency, (u) => pingWithTimeout(u, bodyXml, timeoutMs));
+	if (only === "fail") summary = summary.filter((r: PingResult) => !r.ok);
 
-	return { status: "done", method, siteName, siteUrl, feedUrl, summary };
+	const totals = { total: endpoints.length, ok: summary.filter((r: PingResult) => r.ok).length, fail: summary.filter((r: PingResult) => !r.ok).length };
+
+	return {
+		status: "done",
+		dryRun,
+		method,
+		siteName,
+		siteUrl,
+		feedUrl,
+		totals,
+		summary,
+	};
 }
 
 /**
- * Perform the ping operation
- * @param {string} url The endpoint URL
- * @param {string} body The XML-RPC request body
- * @returns {Promise<PingResult>} The ping result
+ * Convert an array of ping results to CSV format
+ * @param {Array<PingResult & VerboseFields>} rows The array of ping results
+ * @returns {string} The CSV string
  */
-/*
-async function pingOne(url: string, body: string): Promise<PingResult> {
-	const res = await fetch(url, { method: "POST", headers: { "Content-Type": "text/xml" }, body });
-	return { url, ok: res.ok, status: res.status };
+function toCsv(rows: Array<PingResult & VerboseFields>): string {
+	const esc = (s: unknown) =>
+		`"${String(s ?? "")
+			.replace(/\r?\n/g, " ")
+			.replace(/"/g, '""')}"`;
+	const header = "url,ok,status,ms,error,bodySnippet";
+	return [header, ...rows.map((r) => [esc(r.url), esc(r.ok), esc(r.status), esc(r.ms ?? ""), esc(r.error ?? ""), esc(r.bodySnippet ?? "")].join(","))].join("\r\n");
 }
-*/
+
+/**
+ * Convert an array of ping results to NDJSON format
+ * @param {Array<PingResult & VerboseFields>} rows The array of ping results
+ * @returns {string} The NDJSON string
+ */
+function toNdjson(rows: Array<PingResult & VerboseFields>): string {
+	return rows.map((r) => JSON.stringify(r)).join("\n");
+}
 
 /**
  * Generate XML-RPC request body
@@ -232,10 +369,11 @@ async function safeJson(req: Request): Promise<object> {
 }
 
 /**
- *
+ * No operation performed
+ * @returns {Promise<void>} The scheduled event handler
  */
-async function noop() {
-	/* no-op */
+async function noop(): Promise<void> {
+	// No operation performed
 }
 
 // --- Detectors ---
@@ -281,4 +419,219 @@ async function latestCloudflareDeploy(env: RuntimeEnv): Promise<{ id: string } |
 	const first: CfDeploy | undefined = Array.isArray(list) ? list[0] : undefined;
 	const id = first?.id ?? first?.deployment_id ?? first?.short_id;
 	return id ? { id } : null;
+}
+
+/**
+ * Read health data from KV
+ * @param {RuntimeEnv} env
+ * @param {"fail" | "all"} filterView
+ * @returns {Promise<HealthData>} The health data
+ */
+async function readHealth(env: RuntimeEnv, filterView: "fail" | "all" = "all"): Promise<HealthData> {
+	const [lastPingStr, lastSeen, endpoints, lastResult, lastDry, lastReq] = await Promise.all([
+		env.XMLRPC_PING_KV.get("xmlrpc:last-ping", "text"),
+		env.XMLRPC_PING_KV.get("xmlrpc:last-seen", "text"),
+		env.XMLRPC_PING_KV.get("xmlrpc:endpoints", "json") as Promise<string[] | null>,
+		env.XMLRPC_PING_KV.get("xmlrpc:last-result", "json") as Promise<LastResultKV | null>,
+		env.XMLRPC_PING_KV.get("xmlrpc:last-dry", "json")    as Promise<LastResultKV | null>,
+		env.XMLRPC_PING_KV.get("xmlrpc:last-request", "json") as Promise<{ time: number; body: unknown } | null>,
+	]);
+	const sampleSource = lastResult ?? lastDry ?? null;
+	const sampleRes = sampleSource?.result as DoPingResult | undefined;
+
+	const lastPingMs = lastPingStr ? Number(lastPingStr) : null;
+	const now = Date.now();
+	const lockRemainingMs = lastPingMs ? Math.max(0, 60 * 60 * 1000 - (now - lastPingMs)) : 0;
+
+	const summary = (sampleRes?.summary ?? []) as PingResult[];
+	const ok = summary.filter((s) => s.ok).length;
+	const fail = summary.length - ok;
+
+	const filtered = filterView === "fail" ? summary.filter((s) => !s.ok) : summary;
+
+	return {
+		site: {
+		name: sampleRes?.siteName ?? null,
+		url:  sampleRes?.siteUrl  ?? null,
+		feed: sampleRes?.feedUrl  ?? null,
+		},
+		latestId: lastResult?.latest?.id ?? lastSeen ?? null,
+		endpointsCount: Array.isArray(endpoints) ? endpoints.length : 0,
+		lastPingAt: lastPingMs,
+		nextAllowedInMs: lockRemainingMs,
+		lastResultAt: sampleSource?.time ?? null,
+		successes: ok,
+		failures: fail,
+		lastRequestAt: lastReq?.time ?? null,
+		lastRequestBody: lastReq?.body ?? null,
+		recentSample: filtered.slice(0, 20), // <— filtered view
+		sampleSource: sampleSource ? { time: sampleSource.time, result: sampleSource.result } : undefined,
+	};
+}
+
+
+/**
+ * Format a time value
+ * @param {number | null} ms The time in milliseconds
+ * @returns {string} The formatted time string
+ */
+function fmtTime(ms: number | null): string {
+	if (!ms) return "—";
+	const d = new Date(ms);
+	return `${d.toISOString()} (${fmtRelative(Date.now() - ms)} ago)`;
+}
+
+/**
+ * Format a relative time value
+ * @param {number} diffMs The time difference in milliseconds
+ * @returns {string} The formatted relative time string
+ */
+function fmtRelative(diffMs: number): string {
+	const s = Math.floor(diffMs / 1000);
+	if (s < 60) return `${s}s`;
+	const m = Math.floor(s / 60);
+	if (m < 60) return `${m}m`;
+	const h = Math.floor(m / 60);
+	if (h < 24) return `${h}h`;
+	const d = Math.floor(h / 24);
+	return `${d}d`;
+}
+
+/**
+ * Render the health data as HTML
+ * @param {RuntimeEnv} env The runtime environment
+ * @param {number} refreshSeconds The number of seconds to refresh the page
+ * @param {"fail" | "all"} view The view mode
+ * @returns {Promise<string>} The rendered HTML
+ */
+async function renderHealthHtml(env: RuntimeEnv, refreshSeconds = 0, view: "fail" | "all" = "all"): Promise<string> {
+	const data = await readHealth(env);
+	const badge = (label: string, color: string) => `<span class="badge" style="--c:${color}">${label}</span>`;
+	const okBadge = badge("OK", "#22c55e");
+	const failBadge = badge("FAIL", "#ef4444");
+
+	const metaRefresh = refreshSeconds > 0 ? `<meta http-equiv="refresh" content="${refreshSeconds}">` : "";
+
+	const qsAll = new URLSearchParams();
+	if (refreshSeconds > 0) qsAll.set("refresh", String(refreshSeconds));
+	qsAll.set("view", "all");
+	const qsFail = new URLSearchParams(qsAll);
+	qsFail.set("view", "fail");
+
+	const recentRows = (data.recentSample ?? [])
+		.map(
+			(r: PingResult) => `<tr>
+		<td class="mono">${escapeHtml(r.url)}</td>
+		<td>${r.ok ? okBadge : failBadge}</td>
+		<td class="mono">${r.status}</td>
+		<td class="muted">${r.error ? escapeHtml(r.error) : ""}</td>
+		</tr>`,
+		)
+		.join("");
+
+	return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+${metaRefresh}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XML-RPC Pinger • Health</title>
+<style>
+	:root { color-scheme: light dark; }
+	body{font:14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin:24px;}
+	.wrap{max-width:1000px;margin:auto;}
+	h1{font-size:20px;margin:0 0 16px;}
+	.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:16px;}
+	.card{border:1px solid color-mix(in oklab, CanvasText 12%, transparent); border-radius:12px; padding:14px; background:color-mix(in oklab, Canvas 96%, transparent);}
+	.k{color:color-mix(in oklab, CanvasText 40%, transparent)}
+	.v{font-weight:600}
+	.mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+	.muted{color:color-mix(in oklab, CanvasText 55%, transparent)}
+	table{width:100%; border-collapse:collapse; font-size:13px}
+	th,td{padding:8px 10px; border-top:1px solid color-mix(in oklab, CanvasText 12%, transparent); vertical-align:top}
+	th{text-align:left; font-weight:700}
+	.badge{display:inline-block; padding:2px 8px; border-radius:999px; background:color-mix(in oklab, var(--c) 20%, transparent); color:var(--c); border:1px solid var(--c); font-size:12px}
+	.row{display:flex; gap:12px; align-items:baseline; flex-wrap:wrap}
+	.pill{padding:2px 8px; border-radius:999px; border:1px solid color-mix(in oklab, CanvasText 18%, transparent)}
+	.small{font-size:12px}
+	a{color:inherit}
+	.tabs{display:flex;gap:6px}
+	.tab{padding:2px 8px;border-radius:999px;border:1px solid color-mix(in oklab, CanvasText 18%, transparent);text-decoration:none}
+	.tab.active{background:color-mix(in oklab, CanvasText 10%, transparent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+	<h1>XML-RPC Pinger • Health ${refreshSeconds ? `<span class="pill small">auto-refresh ${refreshSeconds}s</span>` : ""}</h1>
+
+	<div class="grid">
+		<div class="card">
+		<div class="row"><span class="k">Site</span><span class="v">${escapeHtml(String(data.site.name ?? "—"))}</span></div>
+		<div class="small mono muted">${escapeHtml(String(data.site.url ?? ""))}</div>
+		<div class="small mono muted">${escapeHtml(String(data.site.feed ?? ""))}</div>
+		</div>
+
+		<div class="card">
+		<div class="k">Endpoints</div>
+		<div class="v">${data.endpointsCount}</div>
+		</div>
+
+		<div class="card">
+		<div class="k">Last ping</div>
+		<div class="v">${fmtTime(data.lastPingAt)}</div>
+		<div class="small muted">Next allowed in: ${data.nextAllowedInMs ? Math.ceil(data.nextAllowedInMs / 1000) + "s" : "now"}</div>
+		</div>
+
+		<div class="card">
+		<div class="k">Latest ID</div>
+		<div class="mono">${escapeHtml(String(data.latestId ?? "—"))}</div>
+		</div>
+
+		<div class="card">
+		<div class="k">Last result</div>
+		<div>${badge(`${data.successes} OK`, "#22c55e")} ${badge(`${data.failures} FAIL`, "#ef4444")}</div>
+		<div class="small muted">at ${fmtTime(data.lastResultAt)}</div>
+		</div>
+
+		<div class="card">
+		<div class="k">Last manual request</div>
+		<div class="small muted">at ${fmtTime(data.lastRequestAt)}</div>
+		</div>
+	</div>
+
+	<div class="card">
+		<div class="row" style="justify-content: space-between; align-items:center;">
+			<div>
+				<strong>Recent sample</strong>
+				<span class="muted small">(max 20)</span>
+			</div>
+			<div class="tabs">
+				<a class="tab ${view === "all" ? "active" : ""}" href="?${qsAll.toString()}">All</a>
+				<a class="tab ${view === "fail" ? "active" : ""}" href="?${qsFail.toString()}">Failures</a>
+			</div>
+		</div>
+		<br />
+		<table>
+		<thead><tr><th>Endpoint</th><th>Status</th><th>HTTP</th><th>Error</th></tr></thead>
+		<tbody>${recentRows || `<tr><td colspan="4" class="muted">No recent data.</td></tr>`}</tbody>
+		</table>
+	</div>
+
+	<br />
+	<hr />
+	<br />
+	<div class="small muted">Tip: add <span class="mono">?refresh=60</span> to auto-refresh every 60s, <span class="mono">?view=fail</span> to show failures, or <span class="mono">?format=json</span> for JSON.</div>
+
+</div>
+</body>
+</html>`;
+}
+
+/**
+ * Escape HTML special characters in a string.
+ * @param {string} s The input string
+ * @returns {string} The escaped string
+ */
+function escapeHtml(s: string): string {
+	return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 }

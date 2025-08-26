@@ -27,8 +27,5 @@ jobs:
       - name: Generate Types
         run: npx wrangler types
 
-      - name: Debug
-        run: ls -la && cat wrangler.toml
-
       - name: Deploy
         run: npx wrangler deploy
