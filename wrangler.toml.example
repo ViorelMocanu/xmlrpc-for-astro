@@ -1,0 +1,20 @@
+name = "xmlrpc-for-astro"
+main = "src/index.ts"
+compatibility_date = "2025-08-26"
+
+# KV for rate limit + last seen deploy/commit
+[[kv_namespaces]]
+binding = # your kv
+id = # your id
+
+# Run every 15 minutes (adjust as you like)
+[triggers]
+crons = ["*/15 * * * *"]
+
+[vars]
+# Defaults (can be overridden via secrets or request body)
+DETECTOR  = "cloudflare"
+SITE_NAME = # the site name
+SITE_URL  = # the site URL
+FEED_URL  = # the feed URL
+CLOUDFLARE_PAGES_PROJECT = # the project name

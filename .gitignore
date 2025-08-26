@@ -81,6 +81,7 @@ web_modules/
 !.env.example
 .dev
 .dev.*
+wrangler.toml
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
