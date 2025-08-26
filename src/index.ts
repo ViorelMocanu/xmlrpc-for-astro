@@ -52,6 +52,8 @@ const HOUR = 60 * 60;
 const RL_KEY = "xmlrpc:last-ping";
 const LAST_KEY = "xmlrpc:last-seen"; // commit sha or deploy id
 
+const minimal_endpoints = ["https://rpc.pingomatic.com/", "https://blogsearch.google.com/ping/RPC2", "https://rpc.twingly.com/", "https://ping.fc2.com/", "https://ping.feedburner.com", "http://ping.blo.gs/", "http://www.weblogues.com/RPC/", "http://www.blogdigger.com/RPC2", "http://pingoat.com/goat/RPC2"];
+
 export default {
 	// Manual trigger (optional) — e.g., from CI
 	async fetch(request: Request, env: RuntimeEnv): Promise<Response> {
@@ -114,21 +116,7 @@ async function doPing(env: RuntimeEnv, payload: Partial<PingPayload>): Promise<o
 	const kvList = (await env.XMLRPC_PING_KV.get("xmlrpc:endpoints", "json")) as string[] | null;
 	if (Array.isArray(kvList)) endpoints = kvList;
 	if (!endpoints.length) {
-		endpoints = Array.isArray(payload.endpoints) ?
-			payload.endpoints :
-			env.PING_ENDPOINTS ?
-				JSON.parse(env.PING_ENDPOINTS) :
-				[
-					"https://rpc.pingomatic.com/",
-					"https://blogsearch.google.com/ping/RPC2",
-					"https://rpc.twingly.com/",
-					"https://ping.fc2.com/",
-					"https://ping.feedburner.com",
-					"http://ping.blo.gs/",
-					"http://www.weblogues.com/RPC/",
-					"http://www.blogdigger.com/RPC2",
-					"http://pingoat.com/goat/RPC2"
-				];
+		endpoints = Array.isArray(payload.endpoints) ? payload.endpoints : env.PING_ENDPOINTS ? JSON.parse(env.PING_ENDPOINTS) : minimal_endpoints;
 	}
 
 	const method = feedUrl ? "weblogUpdates.extendedPing" : "weblogUpdates.ping";
