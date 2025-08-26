@@ -1,7 +1,7 @@
 {
 	"compileOnSave": true,
-	"include": ["**/*", "src", "astro.config.mjs", "worker-configuration.d.ts"],
-	"exclude": ["node_modules", "**/node_modules/*", "dist", "coverage", "static", "eslint.config.js", "astro.config.ts", "data/**"],
+	"include": ["**/*", "src", "worker-configuration.d.ts"],
+	"exclude": ["node_modules", "**/node_modules/*", "dist", "coverage", "static", "eslint.config.js", "data/**"],
 	"compilerOptions": {
 		// Enable top-level await, and other modern ESM features.
 		"target": "ESNext",
@@ -11,10 +11,9 @@
 		// Enable JSON imports.
 		"resolveJsonModule": true,
 		// Enable stricter transpilation for better output.
-		// Astro will directly run your TypeScript code, no transpilation needed.
 		"experimentalDecorators": true,
 		"noEmit": true,
-		"lib": ["DOM", "DOM.Iterable", "ESNext", "ES2022", "WebWorker"],
+		"lib": ["ES2022", "WebWorker"],
 		"noFallthroughCasesInSwitch": true,
 		"noImplicitAny": true,
 		"noImplicitReturns": true,
