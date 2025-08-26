@@ -1,0 +1,89 @@
+{
+	"name": "xmlrpc-for-astro",
+	"version": "0.1.0",
+	"description": "A simple XML-RPC pinger destined to ping various services and notify them of updates I make to my Astro-based website.",
+	"displayName": "Viorel Mocanu - XML-RPC for Astro",
+	"publisher": "ViorelMocanu",
+	"license": "MIT",
+	"homepage": "https://viorelmocanu.ro/xmlrpc",
+	"icon": "public/favicon.png",
+	"type": "module",
+	"private": true,
+	"main": "index.ts",
+	"types": "./wrangler.generated.d.ts",
+	"exports": {
+		".": "./index.ts"
+	},
+	"funding": [
+		{
+			"type": "individual",
+			"url": "https://github.com/sponsors/ViorelMocanu"
+		},
+		{
+			"type": "patreon",
+			"url": "https://www.patreon.com/c/ViorelMocanu"
+		}
+	],
+	"files": [
+		"./src",
+		"index.ts"
+	],
+	"author": {
+		"name": "Viorel Mocanu",
+		"email": "github@viorelmocanu.ro",
+		"url": "https://www.viorelmocanu.ro",
+		"github": "https://github.com/ViorelMocanu"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ViorelMocanu/xmlrpc-for-astro.git"
+	},
+	"bugs": {
+		"url": "https://github.com/ViorelMocanu/xmlrpc-for-astro/issues"
+	},
+	"keywords": [
+		"astro",
+		"astro5",
+		"withastro",
+		"xml",
+		"xmlrpc",
+		"XML-RPC",
+		"ping",
+		"notification",
+		"cloudflare",
+		"cloudflare workers",
+		"cloudflare kv"
+	],
+	"scripts": {
+		"format": "prettier --check ./**/*.{html,css,js,jsx,cjs,ts,tsx,md,mdx,json,yaml}",
+		"format:fix": "prettier --write ./**/*.{html,css,js,jsx,cjs,ts,tsx,md,mdx,json,yaml}",
+		"lint": "eslint ./**/*.ts",
+		"lint:fix": "eslint ./**/*.ts --fix",
+		"generate-types": "wrangler types",
+		"typecheck": "pnpm generate-types && pnpm tsc --project tsconfig.json --noEmit --pretty",
+		"type-check": "pnpm generate-types && pnpm tsc --project tsconfig.json --noEmit --pretty",
+		"test": "pnpm verify",
+		"verify": "pnpm lint && pnpm typecheck && pnpm format",
+		"verify:fix": "pnpm lint:fix && pnpm typecheck && pnpm format:fix",
+		"prepare": "husky",
+		"upd": "pnpm self-update && pnpm update --latest --recursive --interactive --verbose --ignore-scripts=false --include=optional && pnpm up && pnpm i",
+		"dev": "pnpm verify:fix && wrangler dev",
+		"deploy": "pnpm verify:fix && wrangler deploy"
+	},
+	"devDependencies": {
+		"@commitlint/cli": "^19.8.1",
+		"@commitlint/config-conventional": "^19.8.1",
+		"@typescript-eslint/eslint-plugin": "^8.40.0",
+		"@typescript-eslint/parser": "^8.40.0",
+		"eslint": "^9.33.0",
+		"eslint-plugin-jsdoc": "^54.1.1",
+		"husky": "^9.1.7",
+		"jsdoc": "^4.0.4",
+		"prettier": "^3.6.2",
+		"typescript": "^5.9.2",
+		"wrangler": "^4.33.0"
+	},
+	"dependencies": {
+		"@types/node": "^24.3.0"
+	}
+}

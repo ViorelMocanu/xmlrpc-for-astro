@@ -1,0 +1,52 @@
+{
+	"compileOnSave": true,
+	"include": ["**/*", "src", "astro.config.mjs", "worker-configuration.d.ts"],
+	"exclude": ["node_modules", "**/node_modules/*", "dist", "coverage", "static", "eslint.config.js", "astro.config.ts", "data/**"],
+	"compilerOptions": {
+		// Enable top-level await, and other modern ESM features.
+		"target": "ESNext",
+		"module": "ESNext",
+		// Enable node-style module resolution, for things like npm package imports.
+		"moduleResolution": "bundler",
+		// Enable JSON imports.
+		"resolveJsonModule": true,
+		// Enable stricter transpilation for better output.
+		// Astro will directly run your TypeScript code, no transpilation needed.
+		"experimentalDecorators": true,
+		"noEmit": true,
+		"lib": ["DOM", "DOM.Iterable", "ESNext", "ES2022", "WebWorker"],
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitAny": true,
+		"noImplicitReturns": true,
+		"noImplicitThis": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"baseUrl": "src",
+		"paths": {
+			"@components/*": ["components/*"],
+			"@config": ["env.d"],
+			"@content/*": ["content/*"],
+			"@img/*": ["img/*"],
+			"@layouts/*": ["layouts/*"],
+			"@lib/*": ["lib/*"],
+			"@lang": ["i18n/utils"],
+			"@i18n/*": ["i18n/*"],
+			"@utils/*": ["utils/*"],
+			"@style": ["styles/style.scss"],
+			"@data/*": ["data/*"]
+		},
+		"isolatedModules": true,
+		"declaration": true,
+		"types": ["./worker-configuration.d.ts", "node"],
+		"verbatimModuleSyntax": true,
+		"sourceMap": true,
+		"strict": true,
+		"strictNullChecks": true,
+		"strictFunctionTypes": true,
+		"allowJs": true,
+		"checkJs": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"outDir": "./dist"
+	}
+}

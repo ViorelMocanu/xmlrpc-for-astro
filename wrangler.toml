@@ -1,0 +1,20 @@
+name = "xmlrpc-for-astro"
+main = "src/index.ts"
+compatibility_date = "2025-08-26"
+
+# KV for rate limit + last seen deploy/commit
+[[kv_namespaces]]
+binding = "XMLRPC_PING_KV"
+id = "d454238eacc34821983ab706ef156970"
+
+# Run every 15 minutes (adjust as you like)
+[triggers]
+crons = ["*/15 * * * *"]
+
+[vars]
+# Defaults (can be overridden via secrets or request body)
+DETECTOR  = "cloudflare"
+SITE_NAME = "Viorel Mocanu"
+SITE_URL  = "https://www.viorelmocanu.ro"
+FEED_URL  = "https://www.viorelmocanu.ro/feed.xml"
+CLOUDFLARE_PAGES_PROJECT = "xmlrpc-for-astro"
