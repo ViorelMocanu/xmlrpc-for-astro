@@ -24,7 +24,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # (optional) generate updated binding types if wrangler.toml changed
-      - run: npx wrangler types
+      - name: Generate Types
+        run: npx wrangler types
 
       - name: Deploy
         run: npx wrangler deploy
