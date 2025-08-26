@@ -73,9 +73,9 @@
 	"devDependencies": {
 		"@commitlint/cli": "^19.8.1",
 		"@commitlint/config-conventional": "^19.8.1",
-		"@typescript-eslint/eslint-plugin": "^8.40.0",
-		"@typescript-eslint/parser": "^8.40.0",
-		"eslint": "^9.33.0",
+		"@typescript-eslint/eslint-plugin": "^8.41.0",
+		"@typescript-eslint/parser": "^8.41.0",
+		"eslint": "^9.34.0",
 		"eslint-plugin-jsdoc": "^54.1.1",
 		"husky": "^9.1.7",
 		"jsdoc": "^4.0.4",
