@@ -1,3 +1,5 @@
+name: Pentest-Tools.com Scans
+
 on:
     push:
         branches: ["main"]
