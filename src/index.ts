@@ -25,6 +25,10 @@ type RuntimeEnv = Env & {
 	CLOUDFLARE_API_TOKEN?: string;
 	CLOUDFLARE_ACCOUNT_ID?: string;
 	CLOUDFLARE_PAGES_PROJECT?: string;
+
+	// Optional tuning knobs (strings from Wrangler become numbers when parsed below)
+	SUBREQ_BUDGET?: string; // e.g. "45" on Free, "900" on Paid
+	PING_CONCURRENCY?: string; // e.g. "6"
 };
 
 type PingPayload = {
@@ -44,8 +48,18 @@ interface DoPingResult {
 	siteName?: string;
 	siteUrl?: string;
 	feedUrl?: string | null;
-	totals?: { total: number; ok: number; fail: number };
+	totals?: {
+		total: number;
+		ok: number;
+		fail: number;
+		batchStart?: number;
+		batchEnd?: number;
+		batchCount?: number;
+	};
 	summary?: Array<PingResult & VerboseFields>;
+	nextCursor?: number | null;
+	subrequestBudget?: number;
+	concurrencyUsed?: number;
 }
 
 interface GitHubBranchInfo {
@@ -66,7 +80,8 @@ type PingOpts = {
 	timeoutMs?: number; // default 10000
 	limit?: number; // test first N endpoints
 	verbose?: boolean; // add latency & body snippet
-	only?: "all" | "fail"; // filter output
+	only?: "all" | "fail" | "success"; // filter output
+	cursor?: number; // NEW: 0-based index into the endpoints array
 };
 
 type VerboseFields = { ms?: number; bodySnippet?: string };
@@ -116,9 +131,10 @@ export default {
 		// Health page (human-friendly)
 		// GET /health?refresh=60&view=fail|all&format=json|csv|ndjson
 		const url = new URL(request.url);
+		const cursorQ = url.searchParams.get("cursor");
 		const dryRun = url.searchParams.get("dry") === "1";
 		const verbose = url.searchParams.get("verbose") === "1";
-		const only = (url.searchParams.get("only") as "all" | "fail") || "all";
+		const only = (url.searchParams.get("only") as "all" | "fail" | "success") || "all";
 		const limit = Number(url.searchParams.get("limit") || "0");
 		const format = url.searchParams.get("format"); // json (default), csv, ndjson
 
@@ -143,8 +159,9 @@ export default {
 		const auth = request.headers.get("authorization");
 		if (!auth || auth !== `Bearer ${env.XMLRPC_PING_SECRET}`) return new Response("Unauthorized", { status: 401 });
 
-		const body = (await safeJson(request)) as Partial<PingPayload>;
-		const res = await doPing(env, body, { dryRun, verbose, only, limit });
+		const body = (await safeJson(request)) as Partial<PingPayload & { cursor?: number }>;
+		const cursor = typeof body.cursor === "number" ? body.cursor : cursorQ ? Number(cursorQ) : 0;
+		const res = await doPing(env, body, { dryRun, verbose, only, limit, cursor });
 
 		// Persist only non-dry runs to "last-result"
 		if (!dryRun) {
@@ -221,8 +238,14 @@ export default {
  * @returns {Promise<object>} The ping result
  */
 async function doPing(env: RuntimeEnv, payload: Partial<PingPayload>, opts: PingOpts = {}): Promise<DoPingResult> {
-	const { dryRun = false, concurrency = 6, timeoutMs = 10_000, limit = 0, verbose = false, only = "all" } = opts;
+	const { dryRun = false, concurrency = Math.max(1, Math.min(Number(env.PING_CONCURRENCY ?? 6), 10)), timeoutMs = 10_000, limit = 0, verbose = false, only = "all", cursor = 0 } = opts;
 
+	// Compute a safe budget (default 45 for Free; if you’re Unbound/Paid set SUBREQ_BUDGET="900")
+	const rawBudget = Number(env.SUBREQ_BUDGET ?? 45);
+	const SUBREQ_BUDGET = Math.max(1, Math.min(rawBudget, 1000)); // clamp
+	const MAX_CONCURRENCY = Math.max(1, Math.min(concurrency, 6)); // be polite
+
+	// Respect the 1/h lock only for *non-dry* starts
 	if (!dryRun) {
 		const rl = await env.XMLRPC_PING_KV.get(RL_KEY);
 		if (rl) return { status: "skipped", reason: "rate-limited (<=1/hour)" };
@@ -232,6 +255,7 @@ async function doPing(env: RuntimeEnv, payload: Partial<PingPayload>, opts: Ping
 	const siteUrl = payload.siteUrl ?? env.SITE_URL ?? "https://www.viorelmocanu.ro";
 	const feedUrl = payload.feedUrl ?? env.FEED_URL ?? null;
 
+	// Build full endpoint list
 	let endpoints: string[] = [];
 	const kvList = (await env.XMLRPC_PING_KV.get("xmlrpc:endpoints", "json")) as string[] | null;
 	if (Array.isArray(kvList)) endpoints = kvList;
@@ -239,6 +263,12 @@ async function doPing(env: RuntimeEnv, payload: Partial<PingPayload>, opts: Ping
 		endpoints = Array.isArray(payload.endpoints) ? payload.endpoints : env.PING_ENDPOINTS ? JSON.parse(env.PING_ENDPOINTS) : minimal_endpoints;
 	}
 	if (limit > 0) endpoints = endpoints.slice(0, limit);
+
+	// Slice a batch under the subrequest cap
+	const start = Math.max(0, cursor);
+	const end = Math.min(endpoints.length, start + SUBREQ_BUDGET);
+	const batch = endpoints.slice(start, end);
+	const nextCursor = end < endpoints.length ? end : null;
 
 	const method = feedUrl ? "weblogUpdates.extendedPing" : "weblogUpdates.ping";
 	const params = feedUrl ? [siteName, siteUrl, feedUrl] : [siteName, siteUrl];
@@ -248,6 +278,7 @@ async function doPing(env: RuntimeEnv, payload: Partial<PingPayload>, opts: Ping
 		await env.XMLRPC_PING_KV.put(RL_KEY, String(Date.now()), { expirationTtl: HOUR });
 	}
 
+	// one request => one subrequest per endpoint; keep concurrency modest
 	/**
 	 * Ping a URL with a timeout
 	 * @param {string} url The URL to ping
@@ -296,10 +327,23 @@ async function doPing(env: RuntimeEnv, payload: Partial<PingPayload>, opts: Ping
 		return results;
 	}
 
-	let summary = await runPool<string, PingResult & VerboseFields>(endpoints, concurrency, (u) => pingWithTimeout(u, bodyXml, timeoutMs));
+	let summary = await runPool(batch, MAX_CONCURRENCY, (u) => pingWithTimeout(u, bodyXml, timeoutMs));
 	if (only === "fail") summary = summary.filter((r: PingResult) => !r.ok);
+	if (only === "success") summary = summary.filter((r: PingResult) => r.ok);
 
-	const totals = { total: endpoints.length, ok: summary.filter((r: PingResult) => r.ok).length, fail: summary.filter((r: PingResult) => !r.ok).length };
+	const totals = {
+		total: endpoints.length,
+		batchStart: start,
+		batchEnd: end,
+		batchCount: batch.length,
+		ok: summary.filter((r: PingResult) => r.ok).length,
+		fail: summary.filter((r: PingResult) => !r.ok).length,
+	};
+
+	// Save only non-dry runs (as before)
+	if (!dryRun) {
+		await env.XMLRPC_PING_KV.put("xmlrpc:last-result", JSON.stringify({ time: Date.now(), result: { siteName, siteUrl, feedUrl, summary } }), { expirationTtl: 7 * 24 * 3600 });
+	}
 
 	return {
 		status: "done",
@@ -310,6 +354,9 @@ async function doPing(env: RuntimeEnv, payload: Partial<PingPayload>, opts: Ping
 		feedUrl,
 		totals,
 		summary,
+		nextCursor, // <— tell caller if there’s more to do
+		subrequestBudget: SUBREQ_BUDGET,
+		concurrencyUsed: MAX_CONCURRENCY,
 	};
 }
 
