@@ -1,17 +1,103 @@
 # Repo rules for xmlrpc-for-astro
 
-- Use pnpm for everything, as much as possible; prefer "pnpm wrangler ..." over npx.
+## Core rules
+
 - TypeScript: strict; no "any"; prefer explicit return types; make everything type-safe.
 - Lint/format: run "pnpm verify:fix" before proposing changes.
-- Markdown: 4-space indentation; no tabs; wrap at ~100 chars.
 - Code: use 4-spaced tabs in all other files (TS/JS) per .editorconfig.
+- Markdown: 4-space indentation; no tabs; wrap at ~180 chars.
 - Worker: never exceed Cloudflare free subrequest budget; keep concurrency <= 6 unless told.
 - Keep /health UI minimal; no frameworks; inline CSS only.
 - Use KV keys exactly as documented; do not rename without migration.
 - Use GitHub Actions for CI; ensure all checks pass before merging.
-- Document all changes in the changelog. Create one if it doesn't exist.
-- Keep commits focused and atomic. Use branches for larger features. Keep commit messages <72 chars but insightful.
 - Prefer simpler code and solutions, even if they are a bit more verbose.
-- When choosing between performance and readability, prioritize performance (and document with comments).
+- When choosing between performance and readability, prioritize performance (and document thoroughly with code comments).
 - Add code comments to explain complex logic and key features.
 - Automatically write typesafe JSDocs for all functions everywhere, using definition, @params, @returns, all typed.
+
+## Language & tools
+
+- Use **pnpm** for everything (prefer `pnpm wrangler ...` over `npx`).
+- Node **>=20**. Wrangler **4.x**. TypeScript **strict**.
+- Generate Worker binding types with `wrangler types`. Do **not** add `@cloudflare/workers-types` (deprecated).
+
+## Code style
+
+- **Tabs in code** (TS/JS), **4 spaces in Markdown**.
+- Run `pnpm verify:fix` (eslint + typecheck + prettier) before committing.
+- Avoid `any`/implicit any; add explicit return types.
+- `console` is generally disallowed; a tiny breadcrumb in `scheduled()` is OK.
+- `/health` UI stays framework-free with inline CSS.
+
+## Worker limits & safety
+
+- Default **SUBREQ_BUDGET=45** (Free plan). Unbound/Paid: set up to ~900.
+- Keep **PING_CONCURRENCY ≤ 6** by default; be polite to remote endpoints.
+- Per-request timeout ~10s; abort on timeout.
+- `?dry=1` → skip 1-hour KV lock and don’t persist `last-result`.
+- For large lists use **batching** with `cursor` + `SUBREQ_BUDGET`.
+- No background loops that fight platform quotas.
+
+## KV keys (stable contract)
+
+- `xmlrpc:last-ping` → timestamp to enforce ≤ 1/hour lock
+- `xmlrpc:last-seen` → last commit/deploy id processed
+- `xmlrpc:endpoints` → JSON array of ping endpoints
+- `xmlrpc:last-result` → last persisted result (for /health)
+- `xmlrpc:last-dry` → last dry-run snapshot (for /health during tests)
+- `xmlrpc:last-request` → last manual POST body/time
+
+## HTTP interface (must stay stable)
+
+- `POST /` with Bearer `XMLRPC_PING_SECRET`
+    - query: `dry=1|0`, `verbose=1`, `only=all|fail|success`, `limit=N`, `format=json|csv|ndjson`, `cursor=N`
+    - body: `{ siteName, siteUrl, feedUrl, endpoints?, cursor? }`
+    - response: includes `nextCursor` if more work remains.
+- `GET /health?view=all|fail|ok&refresh=60`
+    - `format=json` for structured data.
+    - Fixed-height table with scroll, segmented filter, clickable badges.
+
+## Config surface
+
+- Prefer KV list for endpoints; keep a tiny baked-in fallback only for first-run.
+- Environment knobs (strings in Wrangler, parse to numbers):
+    - `SUBREQ_BUDGET`, `PING_CONCURRENCY`.
+
+## CI rules
+
+- One workflow `deploy.yml` with:
+    - `concurrency` group to prevent push storms.
+    - Environment **production-cloudflare**; set `WORKER_URL` (Environment Variable).
+    - Secrets: `CLOUDFLARE_API_TOKEN` (Workers Scripts/KV/Tail + User Details Read), `XMLRPC_PING_SECRET`.
+    - Start/finish GitHub Deployment (bobheadxi/deployments).
+    - Seed KV when `endpoints.json` changes (dorny/paths-filter).
+    - Smoke test: `curl -X POST "$WORKER_URL?dry=1&limit=3"`.
+
+## Editor & repo hygiene
+
+- `.gitignore`: `.wrangler/`, `worker-configuration.d.ts`, `.env*`, `.dev*`.
+- VS Code: tabs in code; Markdown uses 4-space indentation; Prettier governs wrapping/quotes.
+- Never commit secrets or unredacted logs.
+
+## Nice-to-haves
+
+- Document all changes in the changelog. Create one if it doesn't exist.
+- Keep commits focused and atomic. Use branches for larger features. Keep commit messages <72 chars but insightful.
+- CSV/NDJSON exports for pruning (`?format=csv|ndjson`).
+- `/health` shows: site info, endpoint count, last ping + next window, latest id, last result counts, last manual request time, and a **filterable full table**.
+- Keep magic numbers (timeouts, concurrency) as clear constants.
+- Use `AbortController` to enforce timeouts on fetches.
+- Document all assumptions and decisions in code comments.
+- Keep code DRY (Don't Repeat Yourself) by extracting common logic into reusable functions.
+- Use descriptive variable and function names to improve code readability.
+- Write unit tests to cover critical functionality and edge cases.
+- Optimize performance by minimizing unnecessary computations and memory usage.
+- Use caching to store and reuse expensive computations.
+- Implement lazy loading for resources that are not immediately needed.
+- Consider using web workers for CPU-intensive tasks.
+- Explore using Service Workers for caching and background sync.
+- Investigate using OffscreenCanvas for rendering in web workers.
+- Explore using SharedArrayBuffer for efficient data sharing between threads.
+- Consider using MessageChannel for low-latency communication between web workers.
+- Investigate using BroadcastChannel for communication between different browsing contexts.
+- Explore using ChannelMessaging for communication between different browsing contexts.
