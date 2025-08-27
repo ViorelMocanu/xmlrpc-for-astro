@@ -67,11 +67,11 @@ jobs:
 
             - name: Start GitHub Deployment
               id: dpl
-              uses: bobheadxi/deployments@1
+              uses: bobheadxi/deployments@v1.5.0
               with:
                   step: start
                   token: ${{ secrets.GITHUB_TOKEN }}
-                  environment: production-cloudflare
+                  env: production-cloudflare
                   ref: ${{ github.sha }}
 
             - name: Deploy with Wrangler
@@ -79,11 +79,11 @@ jobs:
 
             - name: Finish GitHub Deployment # always run to mark success/failure
               if: ${{ always() }}
-              uses: bobheadxi/deployments@1
+              uses: bobheadxi/deployments@v1.5.0
               with:
                   step: finish
                   token: ${{ secrets.GITHUB_TOKEN }}
-                  environment: production-cloudflare
+                  env: production-cloudflare
                   ref: ${{ github.sha }}
                   deployment_id: ${{ steps.dpl.outputs.deployment_id }}
                   status: ${{ job.status }}
