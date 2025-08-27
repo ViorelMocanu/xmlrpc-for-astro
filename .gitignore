@@ -80,12 +80,12 @@ web_modules/
 .env.*
 !.env.example
 
-#wrangler
+# Cloudflare Wrangler / Miniflare local state
+.wrangler/
+.wrangler/**
+#wrangler.toml
 .dev
 .dev.*
-#wrangler.toml
-.wrangler
-.wrangler/
 worker-configuration.d.ts
 
 # parcel-bundler cache (https://parceljs.org/)
