@@ -72,7 +72,7 @@ jobs:
               uses: ./ # Uses an action in the root directory
               id: ptt
               with:
-                  target: https://pentest-ground.com:81
+                  target: https://resurse.dev
                   format: text
                   fail: low
             # Use the output
@@ -80,7 +80,7 @@ jobs:
               run: echo "The report ${{ steps.ptt.outputs.result }}"
 
     test_published_action:
-        name: Test that our published Github Action works
+        name: Local files test
         runs-on: ubuntu-latest
         steps:
             - name: Checkout
@@ -89,21 +89,27 @@ jobs:
               uses: ./
               id: ptt
               with:
-                  target: https://pentest-ground.com:81
+                  target: https://resurse.dev
                   format: text
                   fail: none
                   type: deep
                   key: ${{ secrets.PTT_API_KEY }}
             - name: Check the output
               run: echo "The report ${{ steps.ptt.outputs.result }}"
+    test_published_action2:
+        name: Checkout files test
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
             - name: Actual test - using action
               uses: pentesttoolscom/pentesttools-github-action@master
-              id: ptt2
+              id: ptt
               with:
-                  target: https://pentest-ground.com:81 # Has to be accessible to our scanners: https://pentest-tools.com/whitelist-ipv4.txt
+                  target: https://resurse.dev
                   format: text
                   fail: none
                   type: deep
                   key: ${{ secrets.PTT_API_KEY }}
             - name: Print the output
-              run: echo "The report ${{ steps.ptt2.outputs.result }}"
+              run: echo "The report ${{ steps.ptt.outputs.result }}"
