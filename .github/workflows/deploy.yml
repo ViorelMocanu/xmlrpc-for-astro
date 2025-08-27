@@ -21,6 +21,7 @@ jobs:
             url: ${{ vars.WORKER_URL }} # shows as the clickable link on the right sidebar
         env:
             CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }} # CloudFlare API token - not account-level
+            XMLRPC_PING_SECRET: ${{ secrets.XMLRPC_PING_SECRET }} # XML-RPC ping secret
 
         steps:
             - name: Check WORKER_URL
@@ -30,7 +31,7 @@ jobs:
               uses: actions/checkout@v4
 
             - name: Setup PNPM
-              uses: pnpm/action-setup@v3
+              uses: pnpm/action-setup@v4
               with:
                   version: 10
 
@@ -46,9 +47,6 @@ jobs:
               run: pnpm types
 
             - name: Sync CF secrets (optional)
-              env:
-                  XMLRPC_PING_SECRET: ${{ secrets.XMLRPC_PING_SECRET }}
-              if: ${{ secrets.XMLRPC_PING_SECRET != '' }}
               run: |
                   if [ -n "$XMLRPC_PING_SECRET" ]; then
                     printf '%s' "$XMLRPC_PING_SECRET" | pnpm wrangler secret put XMLRPC_PING_SECRET --non-interactive
