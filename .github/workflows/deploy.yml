@@ -46,9 +46,15 @@ jobs:
               run: pnpm types
 
             - name: Sync CF secrets (optional)
+              env:
+                  XMLRPC_PING_SECRET: ${{ secrets.XMLRPC_PING_SECRET }}
               if: ${{ secrets.XMLRPC_PING_SECRET != '' }}
-              run: pnpm wrangler secret put XMLRPC_PING_SECRET --text "${{ secrets.XMLRPC_PING_SECRET }}"
-
+              run: |
+                  if [ -n "$XMLRPC_PING_SECRET" ]; then
+                    printf '%s' "$XMLRPC_PING_SECRET" | pnpm wrangler secret put XMLRPC_PING_SECRET --non-interactive
+                  else
+                    echo "XMLRPC_PING_SECRET not set; skipping."
+                  fi
             - name: Detect changed files
               id: changes
               uses: dorny/paths-filter@v3
