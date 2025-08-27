@@ -1,11 +1,11 @@
 {
 	"name": "xmlrpc-for-astro",
 	"version": "0.1.0",
-	"description": "A simple XML-RPC pinger destined to ping various services and notify them of updates I make to my Astro-based website.",
+	"description": "A simple XML-RPC pinger, deployed on CloudFlare KV, destined to ping various services and notify them of updates I make to my Astro-based website.",
 	"displayName": "Viorel Mocanu - XML-RPC for Astro",
 	"publisher": "ViorelMocanu",
 	"license": "MIT",
-	"homepage": "https://viorelmocanu.ro/xmlrpc",
+	"homepage": "https://xmlrpc-for-astro.cloudflare-aeb.workers.dev/health",
 	"icon": "public/favicon.png",
 	"type": "module",
 	"private": true,
@@ -57,7 +57,7 @@
 	],
 	"engines": {
 		"node": ">=20",
-		"pnpm": ">=9"
+		"pnpm": ">=10"
 	},
 	"publishConfig": {
 		"access": "public"
@@ -71,17 +71,17 @@
 		"maintained node versions"
 	],
 	"scripts": {
-		"format": "prettier --check ./**/*.{html,css,js,jsx,cjs,ts,tsx,md,mdx,json,yaml}",
-		"format:fix": "prettier --write ./**/*.{html,css,js,jsx,cjs,ts,tsx,md,mdx,json,yaml}",
+		"format": "prettier --check .",
+		"format:fix": "prettier --write .",
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",
 		"types": "wrangler types",
 		"typecheck": "pnpm types && pnpm tsc --project tsconfig.json --noEmit --pretty",
-		"type-check": "pnpm types && pnpm tsc --project tsconfig.json --noEmit --pretty",
 		"test": "pnpm verify",
 		"verify": "pnpm lint && pnpm typecheck && pnpm format",
 		"verify:fix": "pnpm lint:fix && pnpm typecheck && pnpm format:fix",
 		"prepare": "husky",
+		"pre-commit": "pnpm verify:fix",
 		"upd": "pnpm self-update && pnpm update --latest --recursive --interactive --verbose --ignore-scripts=false --include=optional && pnpm up && pnpm i",
 		"dev": "pnpm verify:fix && wrangler dev",
 		"dev:remote": "pnpm verify:fix && wrangler dev --remote",
