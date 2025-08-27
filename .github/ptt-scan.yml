@@ -1,5 +1,14 @@
 name: Pentest-Tools.com Scans
 
+permissions:
+    contents: read
+    issues: write
+    pull-requests: write
+    id-token: write
+    pages: write
+    pr-id: write
+    url: write
+
 on:
     push:
         branches: ["main"]
