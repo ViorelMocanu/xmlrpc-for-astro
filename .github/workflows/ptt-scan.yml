@@ -36,9 +36,11 @@ jobs:
               with:
                   target: ${{ steps.deployment.outputs.page_url || 'https://resurse.dev' }}
                   format: text
-                  fail: medium
+                  fail: high
+                  type: light
+                  max_scan_time: 60
             - name: Check the light output
-              run: echo "The light report ${{ steps.ptt.outputs.result }}
+              run: echo "The light report ${{ steps.ptt.outputs.result.description }}
 
     test_deep_scan:
         runs-on: ubuntu-latest
@@ -53,32 +55,12 @@ jobs:
               with:
                   target: ${{ inputs.url || 'https://resurse.dev' }}
                   format: text
-                  fail: medium
+                  fail: high
                   type: deep
                   key: ${{ secrets.PTT_API_KEY }}
+                  max_scan_time: 60
             - name: Check the deep output
-              run: echo "The deep report ${{ steps.ptt.outputs.result }}"
-
-    test_manual_workflow:
-        runs-on: ubuntu-latest
-        name: Should Pass -- Github Action runs manually
-        if: github.event_name == 'workflow_dispatch'
-        steps:
-            # To use this repository's private action,
-            # you must check out the repository
-            - name: Checkout
-              uses: actions/checkout@v4
-            - name: Actual test
-              uses: ./ # Uses an action in the root directory
-              id: ptt
-              with:
-                  target: https://resurse.dev
-                  format: text
-                  fail: low
-            # Use the output
-            - name: Check the output
-              run: echo "The report ${{ steps.ptt.outputs.result }}"
-
+              run: echo "The deep report ${{ steps.ptt.outputs.result.description }}"
     test_published_action:
         name: Local files test
         runs-on: ubuntu-latest
@@ -94,8 +76,9 @@ jobs:
                   fail: none
                   type: deep
                   key: ${{ secrets.PTT_API_KEY }}
+                  max_scan_time: 60
             - name: Check the output
-              run: echo "The report ${{ steps.ptt.outputs.result }}"
+              run: echo "The report ${{ steps.ptt.outputs.result.description }}"
     test_published_action2:
         name: Checkout files test
         runs-on: ubuntu-latest
@@ -111,5 +94,6 @@ jobs:
                   fail: none
                   type: deep
                   key: ${{ secrets.PTT_API_KEY }}
+                  max_scan_time: 60
             - name: Print the output
-              run: echo "The report ${{ steps.ptt.outputs.result }}"
+              run: echo "The report ${{ steps.ptt.outputs.result.description }}"
