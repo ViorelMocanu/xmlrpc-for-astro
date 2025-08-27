@@ -429,6 +429,8 @@ jobs:
     - `CLOUDFLARE_API_TOKEN` (scopes in **Prerequisites**)
     - `XMLRPC_PING_SECRET` (same as you put with Wrangler)
 
+---
+
 ## Using it from an Astro project
 
 In the **Astro** site’s CI (after deploy step), notify the Worker:
@@ -528,9 +530,13 @@ If you enjoyed this, please consider giving it a ⭐ star on GitHub or sharing i
 
 This repo was partially vibe coded _(the hard way)_ in 24h with [ChatGPT 5 (Thinking)](https://chatgpt.com/) and [GitHub Copilot](https://github.com/features/copilot). [GitIngest](https://gitingest.com/ViorelMocanu/xmlrpc-for-astro) this!
 
+---
+
 ## Links
 
 [![YouTube](https://img.shields.io/badge/YouTube-%23FF0000.svg?style=for-the-badge&logo=YouTube&logoColor=white)](https://www.youtube.com/@ViorelMocanu) [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/invite/UpnAutz) [![Facebook](https://img.shields.io/badge/Facebook-%231877F2.svg?style=for-the-badge&logo=Facebook&logoColor=white)](https://www.facebook.com/groups/carierait) [![Instagram](https://img.shields.io/badge/Instagram-%23E4405F.svg?style=for-the-badge&logo=Instagram&logoColor=white)](https://www.instagram.com/viorelmocanu.ro/) [![LinkedIn](https://img.shields.io/badge/linkedin-%230077B5.svg?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/viorelmocanu/) [![Twitter](https://img.shields.io/badge/Twitter-%231DA1F2.svg?style=for-the-badge&logo=Twitter&logoColor=white)](https://twitter.com/ViorelMocanu) [![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)](https://viorelmocanu.ck.page/newsletter) [![WordPress](https://img.shields.io/badge/WordPress-%23117AC9.svg?style=for-the-badge&logo=WordPress&logoColor=white)](https://www.viorelmocanu.ro/blog/) [![Github-sponsors](https://img.shields.io/badge/sponsor-30363D?style=for-the-badge&logo=GitHub-Sponsors&logoColor=#EA4AAA)](https://github.com/sponsors/ViorelMocanu) [![Patreon](https://img.shields.io/badge/Patreon-F96854?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/ViorelMocanu) [![BuyMeACoffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/viorel) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ViorelMocanu/xmlrpc-for-astro)
+
+---
 
 [Viorel Mocanu], [digital consultant] (Development, Design, Marketing, Growth, Leadership, AI) + [content creator].
 

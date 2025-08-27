@@ -1,20 +1,26 @@
 name = "xmlrpc-for-astro"
 main = "src/index.ts"
 compatibility_date = "2025-08-26"
+account_id = # your CloudFlare account ID
 
 # KV for rate limit + last seen deploy/commit
 [[kv_namespaces]]
-binding = # your kv
-id = # your id
+binding = # your KV
+id = # your ID
 
-# Run every 15 minutes (adjust as you like)
 [triggers]
-crons = ["*/15 * * * *"]
+crons = ["*/15 * * * *"] # Run every 15 minutes (adjust as you like)
 
 [vars]
 # Defaults (can be overridden via secrets or request body)
-DETECTOR  = "cloudflare"
+DETECTOR  = "cloudflare" # or "github"
 SITE_NAME = # the site name
 SITE_URL  = # the site URL
 FEED_URL  = # the feed URL
 CLOUDFLARE_PAGES_PROJECT = # the project name
+CLOUDFLARE_ACCOUNT_ID    = # your CloudFlare account ID
+SUBREQ_BUDGET = "45"      # 90% of 50 for Free plan
+PING_CONCURRENCY = "6"    # play nice with concurrency
+
+[observability.logs]
+enabled = true
