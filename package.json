@@ -89,7 +89,9 @@
 		"postinstall": "wrangler types",
 		"tail": "wrangler tail xmlrpc-for-astro",
 		"kv:put:endpoints": "wrangler kv key put xmlrpc:endpoints --binding=XMLRPC_PING_KV --path ./endpoints.json",
-		"kv:get:endpoints": "wrangler kv key get xmlrpc:endpoints --binding=XMLRPC_PING_KV"
+		"kv:put:endpoints:remote": "wrangler kv key put xmlrpc:endpoints --binding=XMLRPC_PING_KV --path ./endpoints.json --remote",
+		"kv:get:endpoints": "wrangler kv key get xmlrpc:endpoints --binding=XMLRPC_PING_KV",
+		"sync-endpoints": "pnpm kv:put:endpoints && pnpm kv:put:endpoints:remote"
 	},
 	"devDependencies": {
 		"@commitlint/cli": "^19.8.1",

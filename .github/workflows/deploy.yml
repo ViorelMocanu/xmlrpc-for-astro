@@ -1,34 +1,114 @@
 name: Deploy XML-RPC Worker on CloudFlare KV
 
 permissions:
-    contents: read
+    contents: read # can checkout read the repo
+    deployments: write # can create/update GitHub Deployments
+
+concurrency:
+    group: worker-deploy
+    cancel-in-progress: true # prevent push storms and redundant deployments
 
 on:
     push:
-        branches: [main]
+        branches: [main] # deploy from main only
+    workflow_dispatch: {} # allow manual triggering
 
 jobs:
     deploy:
         runs-on: ubuntu-latest
+        environment:
+            name: production-cloudflare
+            url: ${{ vars.WORKER_URL }} # shows as the clickable link on the right sidebar
         env:
-            CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+            CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }} # CloudFlare API token - not account-level
 
         steps:
-            - uses: actions/checkout@v4
+            - name: Check WORKER_URL
+              run: test -n "${{ vars.WORKER_URL }}" || (echo "WORKER_URL not set"; exit 1)
 
-            - uses: pnpm/action-setup@v3
+            - name: Checkout Code
+              uses: actions/checkout@v4
+
+            - name: Setup PNPM
+              uses: pnpm/action-setup@v3
               with:
                   version: 9
 
-            - uses: actions/setup-node@v4
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
               with:
                   node-version: 20
 
-            - run: pnpm install --frozen-lockfile
+            - name: Install Dependencies
+              run: pnpm install --frozen-lockfile
 
-            # (optional) generate updated binding types if wrangler.toml changed
             - name: Generate Types
-              run: npx wrangler types
+              run: pnpm types
 
-            - name: Deploy
-              run: npx wrangler deploy
+            - name: Sync CF secrets (optional)
+              if: ${{ secrets.XMLRPC_PING_SECRET != '' }}
+              run: pnpm wrangler secret put XMLRPC_PING_SECRET --text "${{ secrets.XMLRPC_PING_SECRET }}"
+
+            - name: Detect changed files
+              id: changes
+              uses: dorny/paths-filter@v3
+              with:
+                  filters: |
+                      endpoints:
+                        - 'endpoints.json'
+
+            - name: Seed endpoints to KV (when changed)
+              if: ${{ steps.changes.outputs.endpoints == 'true' }}
+              run: pnpm sync-endpoints
+
+            - name: Start GitHub Deployment
+              id: dpl
+              uses: bobheadxi/deployments@1
+              with:
+                  step: start
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  environment: production-cloudflare
+                  ref: ${{ github.sha }}
+
+            - name: Deploy with Wrangler
+              run: pnpm wrangler deploy
+
+            - name: Finish GitHub Deployment # always run to mark success/failure
+              if: ${{ always() }}
+              uses: bobheadxi/deployments@1
+              with:
+                  step: finish
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  environment: production-cloudflare
+                  ref: ${{ github.sha }}
+                  deployment_id: ${{ steps.dpl.outputs.deployment_id }}
+                  status: ${{ job.status }}
+                  env_url: ${{ vars.WORKER_URL }} # this is what renders on the sidebar
+
+            - name: Smoke test
+              env:
+                  URL: ${{ vars.WORKER_URL }}
+                  SEC: ${{ secrets.XMLRPC_PING_SECRET }}
+              run: |
+                  test -n "$URL" || (echo "WORKER_URL missing"; exit 1)
+                  # hit / with a dry run and tiny limit to avoid rate limits
+                  code=$(curl -sS -o /dev/null -w '%{http_code}' \
+                  -X POST "$URL?dry=1&limit=3" \
+                  -H "Authorization: Bearer $SEC" \
+                  -H "Content-Type: application/json" \
+                  --data '{"siteName":"SmokeTest GitHub","siteUrl":"https://github.com/"}')
+                  echo "HTTP $code"
+                  test "$code" = "200"
+
+            - name: Publish summary
+              if: ${{ always() }}
+              env:
+                  URL: ${{ vars.WORKER_URL }}
+              run: |
+                  {
+                  echo "### Deployed to Cloudflare"
+                  echo ""
+                  echo "- **URL:** $URL"
+                  echo "- **Health (failures):** ${URL%/}/health?view=fail"
+                  echo "- **Health (all):** ${URL%/}/health"
+                  } >> "$GITHUB_STEP_SUMMARY"
