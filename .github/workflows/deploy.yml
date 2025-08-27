@@ -94,6 +94,7 @@ jobs:
               env:
                   URL: ${{ vars.WORKER_URL }}
                   SEC: ${{ secrets.XMLRPC_PING_SECRET }}
+                  USR: ${{ github.actor }}
               run: |
                   test -n "$URL" || (echo "WORKER_URL missing"; exit 1)
                   # hit / with a dry run and tiny limit to avoid rate limits
@@ -101,7 +102,7 @@ jobs:
                   -X POST "$URL?dry=1&limit=3" \
                   -H "Authorization: Bearer $SEC" \
                   -H "Content-Type: application/json" \
-                  --data '{"siteName":"SmokeTest GitHub","siteUrl":"https://github.com/"}')
+                  --data "{'siteName':'SmokeTest GitHub $USR','siteUrl':'https://github.com/$USR','feedUrl':'https://github.com/$USR.atom'}")
                   echo "HTTP $code"
                   test "$code" = "200"
 
