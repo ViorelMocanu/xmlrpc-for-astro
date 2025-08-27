@@ -71,6 +71,8 @@ type PingOpts = {
 
 type VerboseFields = { ms?: number; bodySnippet?: string };
 
+type ViewMode = "all" | "fail" | "ok";
+
 interface HealthData {
 	site: { name: string | null; url: string | null; feed: string | null };
 	latestId: string | null;
@@ -82,6 +84,9 @@ interface HealthData {
 	failures: number;
 	lastRequestAt: number | null;
 	lastRequestBody: unknown;
+	// NEW: full list available for /health filtering
+	summary: PingResult[];
+	// kept for compatibility, not used by the new UI
 	recentSample: PingResult[];
 	sampleSource?: { time: number; result: unknown } | undefined;
 }
@@ -118,14 +123,14 @@ export default {
 		const format = url.searchParams.get("format"); // json (default), csv, ndjson
 
 		if (request.method === "GET" && url.pathname === "/health") {
+			const format = url.searchParams.get("format"); // json (default), csv, ndjson (ignored for GET)
 			const refresh = Number(url.searchParams.get("refresh") || "0"); // seconds
-			const view = (url.searchParams.get("view") as "fail" | "all") || "all";
+			const view = (url.searchParams.get("view") as ViewMode) || "all";
 
 			if (format === "json") {
-				const data = await readHealth(env, view);
+				const data = await readHealth(env);
 				return Response.json(data, { headers: { "Cache-Control": "no-store" } });
 			}
-
 			const html = await renderHealthHtml(env, refresh, view);
 			return new Response(html, {
 				status: 200,
@@ -424,40 +429,39 @@ async function latestCloudflareDeploy(env: RuntimeEnv): Promise<{ id: string } |
 /**
  * Read health data from KV
  * @param {RuntimeEnv} env
- * @param {"fail" | "all"} filterView
  * @returns {Promise<HealthData>} The health data
  */
-async function readHealth(env: RuntimeEnv, filterView: "fail" | "all" = "all"): Promise<HealthData> {
+async function readHealth(env: RuntimeEnv): Promise<HealthData> {
 	const [lastPingStr, lastSeen, endpoints, lastResult, lastDry, lastReq] = await Promise.all([env.XMLRPC_PING_KV.get("xmlrpc:last-ping", "text"), env.XMLRPC_PING_KV.get("xmlrpc:last-seen", "text"), env.XMLRPC_PING_KV.get("xmlrpc:endpoints", "json") as Promise<string[] | null>, env.XMLRPC_PING_KV.get("xmlrpc:last-result", "json") as Promise<LastResultKV | null>, env.XMLRPC_PING_KV.get("xmlrpc:last-dry", "json") as Promise<LastResultKV | null>, env.XMLRPC_PING_KV.get("xmlrpc:last-request", "json") as Promise<{ time: number; body: unknown } | null>]);
 	const sampleSource = lastResult ?? lastDry ?? null;
-	const sampleRes = sampleSource?.result as DoPingResult | undefined;
 
 	const lastPingMs = lastPingStr ? Number(lastPingStr) : null;
 	const now = Date.now();
 	const lockRemainingMs = lastPingMs ? Math.max(0, 60 * 60 * 1000 - (now - lastPingMs)) : 0;
 
-	const summary = (sampleRes?.summary ?? []) as PingResult[];
+	// Prefer the most recent available summary (last-result over last-dry)
+	const summary: PingResult[] = (lastResult?.result?.summary as PingResult[] | undefined) ?? (lastDry?.result?.summary as PingResult[] | undefined) ?? [];
+
 	const ok = summary.filter((s) => s.ok).length;
 	const fail = summary.length - ok;
 
-	const filtered = filterView === "fail" ? summary.filter((s) => !s.ok) : summary;
-
 	return {
 		site: {
-			name: sampleRes?.siteName ?? null,
-			url: sampleRes?.siteUrl ?? null,
-			feed: sampleRes?.feedUrl ?? null,
+			name: lastResult?.result?.siteName ?? lastDry?.result?.siteName ?? null,
+			url: lastResult?.result?.siteUrl ?? lastDry?.result?.siteUrl ?? null,
+			feed: lastResult?.result?.feedUrl ?? lastDry?.result?.feedUrl ?? null,
 		},
 		latestId: lastResult?.latest?.id ?? lastSeen ?? null,
 		endpointsCount: Array.isArray(endpoints) ? endpoints.length : 0,
 		lastPingAt: lastPingMs,
 		nextAllowedInMs: lockRemainingMs,
-		lastResultAt: sampleSource?.time ?? null,
+		lastResultAt: lastResult?.time ?? lastDry?.time ?? null,
 		successes: ok,
 		failures: fail,
 		lastRequestAt: lastReq?.time ?? null,
 		lastRequestBody: lastReq?.body ?? null,
-		recentSample: filtered.slice(0, 20), // <— filtered view
+		summary,
+		recentSample: summary.slice(0, 20),
 		sampleSource: sampleSource ? { time: sampleSource.time, result: sampleSource.result } : undefined,
 	};
 }
@@ -493,33 +497,45 @@ function fmtRelative(diffMs: number): string {
  * Render the health data as HTML
  * @param {RuntimeEnv} env The runtime environment
  * @param {number} refreshSeconds The number of seconds to refresh the page
- * @param {"fail" | "all"} view The view mode
+ * @param {"fail" | "all" | "ok"} view The view mode
  * @returns {Promise<string>} The rendered HTML
  */
-async function renderHealthHtml(env: RuntimeEnv, refreshSeconds = 0, view: "fail" | "all" = "all"): Promise<string> {
+async function renderHealthHtml(env: RuntimeEnv, refreshSeconds = 0, view: ViewMode = "all"): Promise<string> {
 	const data = await readHealth(env);
+
+	// filter rows by view
+	const rows = (data.summary || []).filter((r) => (view === "all" ? true : view === "fail" ? !r.ok : r.ok));
+
+	// quick helpers
+	const qp = (v: ViewMode) => `?view=${v}${refreshSeconds ? `&refresh=${refreshSeconds}` : ""}`;
 	const badge = (label: string, color: string) => `<span class="badge" style="--c:${color}">${label}</span>`;
+	const linkBadge = (label: string, color: string, href: string) => `<a class="badge link" style="--c:${color}" href="${href}">${label}</a>`;
+
 	const okBadge = badge("OK", "#22c55e");
 	const failBadge = badge("FAIL", "#ef4444");
 
 	const metaRefresh = refreshSeconds > 0 ? `<meta http-equiv="refresh" content="${refreshSeconds}">` : "";
 
-	const qsAll = new URLSearchParams();
-	if (refreshSeconds > 0) qsAll.set("refresh", String(refreshSeconds));
-	qsAll.set("view", "all");
-	const qsFail = new URLSearchParams(qsAll);
-	qsFail.set("view", "fail");
-
-	const recentRows = (data.recentSample ?? [])
+	const recentRows = rows
 		.map(
-			(r: PingResult) => `<tr>
-		<td class="mono">${escapeHtml(r.url)}</td>
-		<td>${r.ok ? okBadge : failBadge}</td>
-		<td class="mono">${r.status}</td>
-		<td class="muted">${r.error ? escapeHtml(r.error) : ""}</td>
-		</tr>`,
+			(r: PingResult) => `
+<tr>
+	<td class="mono">${escapeHtml(r.url)}</td>
+	<td>${r.ok ? okBadge : failBadge}</td>
+	<td class="mono">${r.status}</td>
+	<td class="muted">${r.error ? escapeHtml(r.error) : ""}</td>
+</tr>
+`,
 		)
 		.join("");
+
+	const tabs = `
+<div class="seg">
+	<a href="${qp("all")}"  class="${view === "all" ? "active" : ""}">All</a>
+	<a href="${qp("fail")}" class="${view === "fail" ? "active" : ""}">Failures</a>
+	<a href="${qp("ok")}"   class="${view === "ok" ? "active" : ""}">Successes</a>
+</div>
+`;
 
 	return `<!doctype html>
 <html lang="en">
@@ -529,7 +545,7 @@ ${metaRefresh}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>XML-RPC Pinger • Health</title>
 <style>
-	:root { color-scheme: light dark; }
+	:root { color-scheme: light dark; --table-h: 520px; }
 	body{font:14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin:24px;}
 	.wrap{max-width:1000px;margin:auto;}
 	h1{font-size:20px;margin:0 0 16px;}
@@ -543,13 +559,22 @@ ${metaRefresh}
 	th,td{padding:8px 10px; border-top:1px solid color-mix(in oklab, CanvasText 12%, transparent); vertical-align:top}
 	th{text-align:left; font-weight:700}
 	.badge{display:inline-block; padding:2px 8px; border-radius:999px; background:color-mix(in oklab, var(--c) 20%, transparent); color:var(--c); border:1px solid var(--c); font-size:12px}
+	.badge.link{text-decoration:none}
 	.row{display:flex; gap:12px; align-items:baseline; flex-wrap:wrap}
 	.pill{padding:2px 8px; border-radius:999px; border:1px solid color-mix(in oklab, CanvasText 18%, transparent)}
 	.small{font-size:12px}
 	a{color:inherit}
-	.tabs{display:flex;gap:6px}
-	.tab{padding:2px 8px;border-radius:999px;border:1px solid color-mix(in oklab, CanvasText 18%, transparent);text-decoration:none}
-	.tab.active{background:color-mix(in oklab, CanvasText 10%, transparent)}
+
+	/* Segmented control */
+	.seg{display:flex; gap:8px; margin-left:auto}
+	.seg a{padding:4px 10px; border-radius:999px; border:1px solid color-mix(in oklab, CanvasText 22%, transparent); text-decoration:none}
+	.seg a.active{background:color-mix(in oklab, CanvasText 15%, transparent)}
+
+	/* Scrollable table area */
+	.tablecard{border:1px solid color-mix(in oklab, CanvasText 12%, transparent); border-radius:12px; background:color-mix(in oklab, Canvas 96%, transparent);}
+	.tablehdr{display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid color-mix(in oklab, CanvasText 12%, transparent);}
+	.tablewrap{height:var(--table-h); overflow:auto;}
+	thead th{position:sticky; top:0; background:color-mix(in oklab, Canvas 96%, transparent);}
 </style>
 </head>
 <body>
@@ -581,7 +606,10 @@ ${metaRefresh}
 
 		<div class="card">
 		<div class="k">Last result</div>
-		<div>${badge(`${data.successes} OK`, "#22c55e")} ${badge(`${data.failures} FAIL`, "#ef4444")}</div>
+		<div>
+			${linkBadge(`${data.successes} OK`, "#22c55e", qp("ok"))}
+			${linkBadge(`${data.failures} FAIL`, "#ef4444", qp("fail"))}
+		</div>
 		<div class="small muted">at ${fmtTime(data.lastResultAt)}</div>
 		</div>
 
@@ -591,29 +619,22 @@ ${metaRefresh}
 		</div>
 	</div>
 
-	<div class="card">
-		<div class="row" style="justify-content: space-between; align-items:center;">
-			<div>
-				<strong>Recent sample</strong>
-				<span class="muted small">(max 20)</span>
-			</div>
-			<div class="tabs">
-				<a class="tab ${view === "all" ? "active" : ""}" href="?${qsAll.toString()}">All</a>
-				<a class="tab ${view === "fail" ? "active" : ""}" href="?${qsFail.toString()}">Failures</a>
-			</div>
+	<div class="tablecard">
+		<div class="tablehdr">
+		<div class="row"><strong>Results</strong><span class="muted small">(showing ${rows.length} of ${data.summary.length})</span></div>
+		${tabs}
 		</div>
-		<br />
+		<div class="tablewrap">
 		<table>
-		<thead><tr><th>Endpoint</th><th>Status</th><th>HTTP</th><th>Error</th></tr></thead>
-		<tbody>${recentRows || `<tr><td colspan="4" class="muted">No recent data.</td></tr>`}</tbody>
+			<thead><tr><th>Endpoint</th><th>Status</th><th>HTTP</th><th>Error</th></tr></thead>
+			<tbody>${recentRows || `<tr><td colspan="4" class="muted">No data.</td></tr>`}</tbody>
 		</table>
+		</div>
 	</div>
 
-	<br />
-	<hr />
-	<br />
-	<div class="small muted">Tip: add <span class="mono">?refresh=60</span> to auto-refresh every 60s, <span class="mono">?view=fail</span> to show failures, or <span class="mono">?format=json</span> for JSON.</div>
-
+	<div class="small muted" style="margin-top:10px">
+		Tip: add <span class="mono">?refresh=60</span> to auto-refresh every 60s, <span class="mono">?view=fail</span> to show failures, or <span class="mono">?format=json</span> for JSON.
+	</div>
 </div>
 </body>
 </html>`;
