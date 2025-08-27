@@ -85,7 +85,7 @@
 		"upd": "pnpm self-update && pnpm update --latest --recursive --interactive --verbose --ignore-scripts=false --include=optional && pnpm up && pnpm i",
 		"dev": "pnpm verify:fix && wrangler dev",
 		"dev:remote": "pnpm verify:fix && wrangler dev --remote",
-		"deploy": "pnpm verify:fix && wrangler deploy",
+		"deploy": "pnpm verify:fix && pnpm sync-endpoints && wrangler deploy",
 		"postinstall": "wrangler types",
 		"tail": "wrangler tail xmlrpc-for-astro",
 		"kv:put:endpoints": "wrangler kv key put xmlrpc:endpoints --binding=XMLRPC_PING_KV --path ./endpoints.json",
