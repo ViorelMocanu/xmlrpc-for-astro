@@ -23,3 +23,5 @@ CLOUDFLARE_ACCOUNT_ID    = "aebd6727945799943cfc166658576676"
 SUBREQ_BUDGET = "45"      # 90% of 50 for Free plan
 PING_CONCURRENCY = "6"    # play nice with concurrency
 
+[observability.logs]
+enabled = true
