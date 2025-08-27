@@ -6,8 +6,6 @@ permissions:
     pull-requests: write
     id-token: write
     pages: write
-    pr-id: write
-    url: write
 
 on:
     push:
@@ -100,7 +98,7 @@ jobs:
               run: echo "The report ${{ steps.ptt.outputs.result }}"
             - name: Actual test - using action
               uses: pentesttoolscom/pentesttools-github-action@master
-              id: ptt
+              id: ptt2
               with:
                   target: https://pentest-ground.com:81 # Has to be accessible to our scanners: https://pentest-tools.com/whitelist-ipv4.txt
                   format: text
@@ -108,4 +106,4 @@ jobs:
                   type: deep
                   key: ${{ secrets.PTT_API_KEY }}
             - name: Print the output
-              run: echo "The report ${{ steps.ptt.outputs.result }}"
+              run: echo "The report ${{ steps.ptt2.outputs.result }}"
