@@ -1,7 +1,7 @@
 # XML-RPC Pinger for Astro (Cloudflare Worker)
 
 > A tiny Worker that recreates “WordPress Update Services” for your **Astro** site.  
-> It pings a list of XML-RPC endpoints whenever you deploy — **at most once per hour** — and ships with a pretty `/health` page, a dry-run mode, and CSV/NDJSON exports for pruning dead endpoints, and Cloudflare‑safe batching.
+> It pings a list of XML-RPC endpoints whenever you deploy — **at most once per hour** — and ships with a pretty `/health` page, a dry-run mode, CSV/NDJSON exports for pruning dead endpoints, and Cloudflare‑safe batching.
 
 ---
 
@@ -31,7 +31,7 @@
     - `weblogUpdates.ping(siteName, siteUrl)`
     - `weblogUpdates.extendedPing(siteName, siteUrl, feedUrl)`
 - **Batching & cursor**: to avoid Cloudflare “Too many subrequests”, each invocation only hits up to `SUBREQ_BUDGET` endpoints (default 45 for Free). Pass `cursor` to resume the next slice.  
-  Example: 425 endpoints with budget 45 → 10 slices (0,45,90,…).
+  Example: 257 endpoints with budget 45 → 6 slices (0,45,90,…).
 
 ---
 
@@ -235,7 +235,7 @@ curl -sS -X POST "$URL?dry=1&verbose=1&only=fail&format=csv" \
 
 ```bash
 BUDGET=45
-TOTAL=425
+TOTAL=257
 for CUR in $(seq 0 $BUDGET $TOTAL); do
   curl -sS -X POST "$URL?dry=1&cursor=$CUR&verbose=1&only=fail&format=ndjson" \
     -H "Authorization: Bearer $SEC" \
@@ -524,15 +524,15 @@ MIT — Do what you like. If it helps your blog get a little more love from the 
 
 ## Support
 
-If you enjoyed this project, please consider giving it a star on GitHub or sharing it with others who might find it useful. Your support helps encourage further development and improvements!
+If you enjoyed this, please consider giving it a ⭐ star on GitHub or sharing it with others who might find it useful. Your support helps encourage further development and improvements!
 
-This repo was partially vibe coded _(the hard way)_ with [ChatGPT 5 (Thinking)](https://chatgpt.com/) and [GitHub Copilot](https://github.com/features/copilot).
+This repo was partially vibe coded _(the hard way)_ in 24h with [ChatGPT 5 (Thinking)](https://chatgpt.com/) and [GitHub Copilot](https://github.com/features/copilot). [GitIngest](https://gitingest.com/ViorelMocanu/xmlrpc-for-astro) this!
 
 ## Links
 
-[![YouTube](https://img.shields.io/badge/YouTube-%23FF0000.svg?style=for-the-badge&logo=YouTube&logoColor=white)](https://www.youtube.com/@ViorelMocanu) [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/invite/UpnAutz) [![Facebook](https://img.shields.io/badge/Facebook-%231877F2.svg?style=for-the-badge&logo=Facebook&logoColor=white)](https://www.facebook.com/groups/carierait) [![Instagram](https://img.shields.io/badge/Instagram-%23E4405F.svg?style=for-the-badge&logo=Instagram&logoColor=white)](https://www.instagram.com/viorelmocanu.ro/) [![LinkedIn](https://img.shields.io/badge/linkedin-%230077B5.svg?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/viorelmocanu/) [![Twitter](https://img.shields.io/badge/Twitter-%231DA1F2.svg?style=for-the-badge&logo=Twitter&logoColor=white)](https://twitter.com/ViorelMocanu) [![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)](https://viorelmocanu.ck.page/newsletter) [![WordPress](https://img.shields.io/badge/WordPress-%23117AC9.svg?style=for-the-badge&logo=WordPress&logoColor=white)](https://www.viorelmocanu.ro/blog/) [![Github-sponsors](https://img.shields.io/badge/sponsor-30363D?style=for-the-badge&logo=GitHub-Sponsors&logoColor=#EA4AAA)](https://github.com/sponsors/ViorelMocanu) [![Patreon](https://img.shields.io/badge/Patreon-F96854?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/ViorelMocanu) [![BuyMeACoffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/viorel)
+[![YouTube](https://img.shields.io/badge/YouTube-%23FF0000.svg?style=for-the-badge&logo=YouTube&logoColor=white)](https://www.youtube.com/@ViorelMocanu) [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/invite/UpnAutz) [![Facebook](https://img.shields.io/badge/Facebook-%231877F2.svg?style=for-the-badge&logo=Facebook&logoColor=white)](https://www.facebook.com/groups/carierait) [![Instagram](https://img.shields.io/badge/Instagram-%23E4405F.svg?style=for-the-badge&logo=Instagram&logoColor=white)](https://www.instagram.com/viorelmocanu.ro/) [![LinkedIn](https://img.shields.io/badge/linkedin-%230077B5.svg?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/viorelmocanu/) [![Twitter](https://img.shields.io/badge/Twitter-%231DA1F2.svg?style=for-the-badge&logo=Twitter&logoColor=white)](https://twitter.com/ViorelMocanu) [![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)](https://viorelmocanu.ck.page/newsletter) [![WordPress](https://img.shields.io/badge/WordPress-%23117AC9.svg?style=for-the-badge&logo=WordPress&logoColor=white)](https://www.viorelmocanu.ro/blog/) [![Github-sponsors](https://img.shields.io/badge/sponsor-30363D?style=for-the-badge&logo=GitHub-Sponsors&logoColor=#EA4AAA)](https://github.com/sponsors/ViorelMocanu) [![Patreon](https://img.shields.io/badge/Patreon-F96854?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/ViorelMocanu) [![BuyMeACoffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/viorel) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ViorelMocanu/xmlrpc-for-astro)
 
-[Viorel Mocanu], [digital consultant] specialized in Web Development, Design, Growth and AI + occasional [content creator].
+[Viorel Mocanu], [digital consultant] (Development, Design, Marketing, Growth, Leadership, AI) + [content creator].
 
 [Viorel Mocanu]: https://github.com/ViorelMocanu
 [digital consultant]: https://www.viorelmocanu.ro/

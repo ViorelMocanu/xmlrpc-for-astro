@@ -2,6 +2,10 @@
 
 ## Core rules
 
+- The code should be secure.
+- The code should be simple and straightforward, with no unnecessary complexity or overengineering.
+- The code should use as little resources as possible, and keep hosting costs zero or minimal.
+- It is more important for the application to be reliable and low-overhead than fast, as it is a background service designed to run when the main site is updated via GitHub push or deployment.
 - TypeScript: strict; no "any"; prefer explicit return types; make everything type-safe.
 - Lint/format: run "pnpm verify:fix" before proposing changes.
 - Code: use 4-spaced tabs in all other files (TS/JS) per .editorconfig.
