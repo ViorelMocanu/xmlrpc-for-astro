@@ -28,15 +28,15 @@ jobs:
               run: test -n "${{ vars.WORKER_URL }}" || (echo "WORKER_URL not set"; exit 1)
 
             - name: Checkout Code
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5.0.0
 
             - name: Setup PNPM
-              uses: pnpm/action-setup@v4
+              uses: pnpm/action-setup@v4.1.0
               with:
                   version: 10.15.0
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v4.4.0
               with:
                   node-version: 20
                   cache: "pnpm"
@@ -56,7 +56,7 @@ jobs:
                   fi
             - name: Detect changed files
               id: changes
-              uses: dorny/paths-filter@v3
+              uses: dorny/paths-filter@v3.0.2
               with:
                   filters: |
                       endpoints:
