@@ -11,7 +11,7 @@
 	"private": true,
 	"main": "index.ts",
 	"types": "./wrangler.generated.d.ts",
-	"packageManager": "pnpm@10.15.0",
+	"packageManager": "pnpm@10.15.1",
 	"exports": {
 		".": "./index.ts"
 	},
@@ -96,14 +96,14 @@
 	"devDependencies": {
 		"@commitlint/cli": "^19.8.1",
 		"@commitlint/config-conventional": "^19.8.1",
-		"@typescript-eslint/eslint-plugin": "^8.41.0",
-		"@typescript-eslint/parser": "^8.41.0",
+		"@typescript-eslint/eslint-plugin": "^8.42.0",
+		"@typescript-eslint/parser": "^8.42.0",
 		"eslint": "^9.34.0",
-		"eslint-plugin-jsdoc": "^54.1.1",
+		"eslint-plugin-jsdoc": "^54.3.0",
 		"husky": "^9.1.7",
 		"jsdoc": "^4.0.4",
 		"prettier": "^3.6.2",
 		"typescript": "^5.9.2",
-		"wrangler": "^4.33.0"
+		"wrangler": "^4.33.2"
 	}
 }
