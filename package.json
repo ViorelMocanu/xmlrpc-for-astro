@@ -94,7 +94,7 @@
 		"sync-endpoints": "pnpm kv:put:endpoints && pnpm kv:put:endpoints:remote"
 	},
 	"devDependencies": {
-		"@commitlint/cli": "^19.8.1",
+		"@commitlint/cli": "^20.1.0",
 		"@commitlint/config-conventional": "^19.8.1",
 		"@typescript-eslint/eslint-plugin": "^8.42.0",
 		"@typescript-eslint/parser": "^8.42.0",
