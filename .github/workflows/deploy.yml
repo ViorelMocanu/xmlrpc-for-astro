@@ -28,7 +28,7 @@ jobs:
               run: test -n "${{ vars.WORKER_URL }}" || (echo "WORKER_URL not set"; exit 1)
 
             - name: Checkout Code
-              uses: actions/checkout@v5.0.0
+              uses: actions/checkout@v6.0.2
 
             - name: Setup PNPM
               uses: pnpm/action-setup@v4.1.0
