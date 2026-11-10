@@ -154,10 +154,10 @@ jobs:
         env:
             CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         steps:
-            - uses: actions/checkout@v4
-            - uses: pnpm/action-setup@v3
-              with: { version: 9 }
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@v7
+            - uses: pnpm/action-setup@v6
+              with: { version: 10 }
+            - uses: actions/setup-node@v7
               with: { node-version: 24 }
             - run: pnpm install --frozen-lockfile
             - run: pnpm dlx wrangler types
