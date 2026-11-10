@@ -310,8 +310,8 @@ async function doPing(env: RuntimeEnv, payload: Partial<PingPayload>, opts: Ping
 	 * Run a pool of promises with a limited concurrency
 	 * @param {T[]} items The items to process
 	 * @param {number} size The maximum number of concurrent promises
-	 * @param {(i: T) => Promise<any>} fn The function to call for each item
-	 * @returns {Promise<any[]>} The results of the promises
+	 * @param {(i: T) => Promise<R>} fn The function to call for each item
+	 * @returns {Promise<R[]>} The results of the promises
 	 */
 	async function runPool<T, R>(items: T[], size: number, fn: (i: T) => Promise<R>): Promise<R[]> {
 		const results: R[] = [];

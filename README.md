@@ -37,7 +37,7 @@
 
 ## Prerequisites
 
-- **Node 20+** (LTS) and **pnpm 10+**
+- **Node 24** (LTS, 24.15+; 22.22.2+ also works) and **pnpm 10+**
 - A **Cloudflare account** with:
     - A **Workers KV namespace** (we’ll create one)
     - An **API Token** (store it in your CI as `CLOUDFLARE_API_TOKEN`) with scopes:
@@ -340,7 +340,7 @@ jobs:
             - name: Setup Node.js
               uses: actions/setup-node@v4.4.0
               with:
-                  node-version: 20
+                  node-version: 24
                   cache: "pnpm"
 
             - name: Install Dependencies

@@ -3,7 +3,7 @@ import jsdoc from "eslint-plugin-jsdoc";
 import ts from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
 
-const ignoreArray = [".astro/**", ".cache/**", ".github/**", ".idea/**", ".netlify/**", ".vercel/**", "build/**", "coverage/**", "demo/**", "dev-dist/**", "dist/**", "node_modules/**", "static/**"];
+const ignoreArray = [".astro/**", ".cache/**", ".github/**", ".idea/**", ".netlify/**", ".vercel/**", "build/**", "coverage/**", "demo/**", "dev-dist/**", "dist/**", "node_modules/**", "static/**", "worker-configuration.d.ts"];
 
 export default defineConfig([
 	globalIgnores(ignoreArray),

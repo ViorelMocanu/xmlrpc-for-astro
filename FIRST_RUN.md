@@ -6,7 +6,7 @@ This bundle gives you a ready-to-go setup to work on the **XML‑RPC Pinger for 
 
 ## 0) Prereqs
 
-- Node **20+**, pnpm **9+**
+- Node **24** (24.15+; 22.22.2+ also works), pnpm **10+**
 - Cloudflare account
 - Wrangler: `pnpm dlx wrangler --version` (or install globally)
 
@@ -158,7 +158,7 @@ jobs:
             - uses: pnpm/action-setup@v3
               with: { version: 9 }
             - uses: actions/setup-node@v4
-              with: { node-version: 20 }
+              with: { node-version: 24 }
             - run: pnpm install --frozen-lockfile
             - run: pnpm dlx wrangler types
             - run: pnpm dlx wrangler deploy

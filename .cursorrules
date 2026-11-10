@@ -22,7 +22,7 @@
 ## Language & tools
 
 - Use **pnpm** for everything (prefer `pnpm wrangler ...` over `npx`).
-- Node **>=20**. Wrangler **4.x**. TypeScript **strict**.
+- Node **>=22.22.2** (24 LTS preferred). Wrangler **4.x**. TypeScript **strict**.
 - Generate Worker binding types with `wrangler types`. Do **not** add `@cloudflare/workers-types` (deprecated).
 
 ## Code style
